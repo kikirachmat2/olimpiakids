@@ -35,42 +35,75 @@ export default function RankRow({
 
   // Base style & bevel shadow: shadow-[0_3px_0_rgba(...)]
   let rowStyle =
-    'bg-gradient-to-b from-white to-slate-50 border-2 border-blue-200 text-slate-800 shadow-[0_3px_0_rgba(191,219,254,1)]'
+    'bg-gradient-to-b from-white to-slate-50 border-2 border-blue-200 text-slate-800 shadow-[0_3.5px_0_rgba(191,219,254,1)]'
   let timerStyle = 'bg-gradient-to-b from-blue-500 to-blue-600 text-white shadow-sm'
+  let badgeIcon: React.ReactNode = null
 
   if (isFirst) {
+    // 🥇 Juara 1: Special Gold berkilau dengan efek bevel emas tebal
     rowStyle =
-      'bg-gradient-to-b from-yellow-200 to-yellow-400 border-2 border-yellow-400 text-amber-950 shadow-[0_3px_0_rgba(234,179,8,1)]'
-    timerStyle = 'bg-gradient-to-b from-amber-600 to-yellow-600 text-white shadow-sm'
+      'bg-gradient-to-b from-amber-200 via-yellow-300 to-amber-300 border-2 border-amber-400 text-amber-950 shadow-[0_4px_0_rgba(217,119,6,1)] ring-2 ring-yellow-400/40'
+    timerStyle = 'bg-gradient-to-b from-amber-600 to-yellow-600 text-white shadow-md'
+    badgeIcon = (
+      <motion.span
+        animate={{ scale: [1, 1.2, 1], rotate: [0, 8, -8, 0] }}
+        transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+        className="inline-block mr-1 text-xl sm:text-2xl"
+      >
+        🥇
+      </motion.span>
+    )
   } else if (isSecond) {
+    // 🥈 Juara 2: Special Silver perak berkilau
     rowStyle =
-      'bg-gradient-to-b from-slate-100 to-slate-200 border-2 border-slate-300 text-slate-700 shadow-[0_3px_0_rgba(203,213,225,1)]'
-    timerStyle = 'bg-gradient-to-b from-slate-600 to-slate-700 text-white shadow-sm'
+      'bg-gradient-to-b from-slate-100 via-gray-200 to-slate-200 border-2 border-slate-300 text-slate-800 shadow-[0_4px_0_rgba(148,163,184,1)] ring-1 ring-slate-300/60'
+    timerStyle = 'bg-gradient-to-b from-slate-600 to-slate-700 text-white shadow-md'
+    badgeIcon = (
+      <motion.span
+        animate={{ scale: [1, 1.15, 1], rotate: [0, -6, 6, 0] }}
+        transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut', delay: 0.2 }}
+        className="inline-block mr-1 text-xl sm:text-2xl"
+      >
+        🥈
+      </motion.span>
+    )
   } else if (isThird) {
+    // 🥉 Juara 3: Special Bronze perunggu cerah
     rowStyle =
-      'bg-gradient-to-b from-orange-200 to-orange-300 border-2 border-orange-400 text-orange-950 shadow-[0_3px_0_rgba(251,146,60,1)]'
-    timerStyle = 'bg-gradient-to-b from-orange-600 to-amber-700 text-white shadow-sm'
+      'bg-gradient-to-b from-orange-200 via-amber-200 to-orange-300 border-2 border-orange-400 text-orange-950 shadow-[0_4px_0_rgba(234,88,12,1)] ring-1 ring-orange-300/60'
+    timerStyle = 'bg-gradient-to-b from-orange-600 to-amber-700 text-white shadow-md'
+    badgeIcon = (
+      <motion.span
+        animate={{ scale: [1, 1.15, 1], rotate: [0, 6, -6, 0] }}
+        transition={{ repeat: Infinity, duration: 2.6, ease: 'easeInOut', delay: 0.4 }}
+        className="inline-block mr-1 text-xl sm:text-2xl"
+      >
+        🥉
+      </motion.span>
+    )
   }
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0, x: -20, scale: 0.98 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0 }}
+      whileHover={{ scale: 1.012, transition: { duration: 0.15 } }}
       transition={{
-        duration: 0.35,
+        duration: 0.4,
         delay: index * 0.03,
         ease: 'easeOut',
       }}
-      className={`grid items-center rounded-2xl min-h-[54px] mb-1.5 px-3 sm:px-4 py-2 select-none transition-shadow ${rowStyle}`}
+      className={`grid items-center rounded-2xl min-h-[56px] mb-2 px-3 sm:px-4 py-2 select-none transition-all ${rowStyle}`}
       style={{
         gridTemplateColumns: '12% 22% 41% 25%',
       }}
     >
-      {/* Kolom 1 (12%): NO */}
-      <div className="text-center font-display font-black text-lg sm:text-2xl">
-        {rank}
+      {/* Kolom 1 (12%): NO DENGAN MEDALI SPESIAL */}
+      <div className="text-center font-display font-black text-lg sm:text-2xl flex items-center justify-center">
+        {badgeIcon}
+        <span>{rank}</span>
       </div>
 
       {/* Kolom 2 (22%): NOMOR DADA */}
@@ -79,17 +112,20 @@ export default function RankRow({
       </div>
 
       {/* Kolom 3 (41%): NAMA ANAK */}
-      <div className="font-sans font-extrabold text-sm sm:text-base md:text-lg lg:text-xl truncate px-1">
-        {participant_name}
+      <div className="font-sans font-extrabold text-sm sm:text-base md:text-lg lg:text-xl truncate px-1 flex items-center gap-1.5">
+        <span className="truncate">{participant_name}</span>
+        {isFirst && <span className="text-xs sm:text-sm">👑</span>}
       </div>
 
-      {/* Kolom 4 (25%): TIMER */}
+      {/* Kolom 4 (25%): TIMER DENGAN WARNA SPESIAL */}
       <div className="flex justify-center items-center">
-        <div
+        <motion.div
+          animate={isFirst ? { scale: [1, 1.04, 1] } : {}}
+          transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
           className={`w-[88%] max-w-[125px] py-1.5 rounded-full text-center font-mono font-black text-xs sm:text-sm md:text-base tracking-tight ${timerStyle}`}
         >
           {formatTimerMMSSCC(duration_ms)}
-        </div>
+        </motion.div>
       </div>
     </motion.div>
   )
