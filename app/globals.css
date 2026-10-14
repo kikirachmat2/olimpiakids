@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f0f9ff;
+  --background: #35bdec;
   --foreground: #0f172a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-nunito), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: var(--font-fredoka), cursive, sans-serif;
+  --font-sans: var(--font-nunito), system-ui, sans-serif;
+  --font-display: var(--font-fredoka), system-ui, sans-serif;
   --font-mono: var(--font-mono), monospace;
 }
 

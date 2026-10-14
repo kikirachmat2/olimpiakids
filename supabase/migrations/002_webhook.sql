@@ -1,0 +1,27 @@
+-- =========================================================================
+-- SUPABASE DATABASE WEBHOOKS (PANDUAN SETUP DARI DASHBOARD)
+-- =========================================================================
+-- Catatan: Supabase Database Webhooks dikonfigurasi melalui antarmuka
+-- Supabase Dashboard (Database -> Webhooks) karena menggunakan eksternal
+-- HTTP extension (pg_net) yang dikelola oleh layanan backend Supabase.
+--
+-- Langkah pembuatan Webhook di Supabase Dashboard:
+--
+-- 1. Webhook Hasil Lomba (race_results -> Google Sheets):
+--    - Name: sync_race_results_to_sheets
+--    - Table: public.race_results
+--    - Events: INSERT, UPDATE
+--    - Type: HTTP Request
+--    - Method: POST
+--    - URL: https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec
+--    - Headers: Content-Type: application/json
+--
+-- 2. Webhook Sesi Lomba (race_events -> Google Sheets):
+--    - Name: sync_race_events_to_sheets
+--    - Table: public.race_events
+--    - Events: UPDATE, INSERT
+--    - Type: HTTP Request
+--    - Method: POST
+--    - URL: https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec
+--    - Headers: Content-Type: application/json
+-- =========================================================================

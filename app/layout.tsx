@@ -10,13 +10,13 @@ const nunito = Nunito({
 
 const fredoka = Fredoka({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-fredoka',
 })
 
 const jetbrains = JetBrains_Mono({
   subsets: ['latin'],
-  weight: ['500', '700', '800'],
+  weight: ['700', '800'],
   variable: '--font-mono',
 })
 
@@ -35,7 +35,7 @@ export default function RootLayout({
       lang="id"
       className={`${nunito.variable} ${fredoka.variable} ${jetbrains.variable} h-full antialiased`}
     >
-      <body className="min-h-full font-sans selection:bg-amber-400 selection:text-slate-900 bg-sky-100 text-slate-800">
+      <body className="min-h-full font-sans selection:bg-amber-400 selection:text-slate-900 bg-sky-200 text-slate-800">
         {children}
       </body>
     </html>
