@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ToastProvider } from '@/components/Toast'
-import { Users, Gauge, Trophy, Baby, ExternalLink } from 'lucide-react'
+import { Users, Gauge, Trophy, Baby, RefreshCw, ExternalLink } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -19,6 +19,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       name: 'Kontrol Lomba',
       href: '/admin/kontrol',
       icon: Gauge,
+    },
+    {
+      name: 'Google Sheets Sync',
+      href: '/admin/sync',
+      icon: RefreshCw,
     },
     {
       name: 'Leaderboard (Publik)',
