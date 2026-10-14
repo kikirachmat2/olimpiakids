@@ -23,6 +23,11 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'LEADERBOARD BABY CRAWLING - OLIMPIAKIDS',
   description: 'Papan Skor Pertandingan Lomba Merangkak Bayi Olimpiakids Realtime',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' }
+    ],
+  },
 }
 
 export default function RootLayout({

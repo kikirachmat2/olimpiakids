@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <!-- Gradasi Lingkaran Latar Belakang -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <!-- Gradasi Dot Bayi (Pacifier / Empeng) -->
+    <linearGradient id="pacifierGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+
+    <!-- Gradasi Pegangan Dot -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+
+  <!-- Latar Belakang Bulat Biru Langit Ceria -->
+  <circle cx="50" cy="50" r="48" fill="url(#bgGrad)" stroke="#ffffff" stroke-width="4" />
+
+  <!-- Nipple / Ujung Karet Dot (Kuning Lembut) -->
+  <path d="M 38 42 C 38 24, 62 24, 62 42 Z" fill="#fef08a" stroke="#f59e0b" stroke-width="3" />
+
+  <!-- Pelindung Dot / Shield (Pink / Coral Lucu) -->
+  <ellipse cx="50" cy="46" rx="28" ry="14" fill="#fb7185" stroke="#ffffff" stroke-width="3" />
+  
+  <!-- Lubang Udara pada Shield Dot -->
+  <circle cx="34" cy="46" r="3" fill="#ffffff" opacity="0.8" />
+  <circle cx="66" cy="46" r="3" fill="#ffffff" opacity="0.8" />
+
+  <!-- Tombol Tengah Dot -->
+  <circle cx="50" cy="48" r="9" fill="url(#pacifierGrad)" stroke="#ffffff" stroke-width="2.5" />
+
+  <!-- Pegangan Dot / Ring Handle (Melengkung ke Bawah) -->
+  <path d="M 40 52 C 40 76, 60 76, 60 52" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
+  <path d="M 40 52 C 40 76, 60 76, 60 52" fill="none" stroke="url(#ringGrad)" stroke-width="3" stroke-linecap="round" />
+  
+  <!-- Kilauan Bintang Kecil di Atas -->
+  <path d="M 78 18 L 80 23 L 85 25 L 80 27 L 78 32 L 76 27 L 71 25 L 76 23 Z" fill="#ffd300" />
+</svg>
