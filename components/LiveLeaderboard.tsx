@@ -74,41 +74,56 @@ export default function LiveLeaderboard() {
   }, [loadLeaderboardData])
 
   return (
-    <div className="relative z-10 w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-8 flex flex-col items-center">
-      {/* 1. LOGO DI TENGAH ATAS DENGAN ANIMASI FLOAT HALUS */}
+    <div className="relative z-10 w-full max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6 flex flex-col items-center">
+      {/* 1. BRANDING LOGO: KIRI TRANS TV, KANAN OLIMPIAKIDS (RATA SEJAJAR & RESPONSIF) */}
       <motion.div
-        animate={{ y: [0, -4, 0] }}
+        animate={{ y: [0, -3.5, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex justify-center -mb-[2px]"
+        className="flex items-center justify-center gap-3 sm:gap-6 md:gap-8 mb-3 sm:mb-4 px-2"
       >
-        {!logoError ? (
+        {/* LOGO TRANS TV (SEBELAH KIRI) */}
+        <div className="relative flex items-center justify-center shrink-0">
           <Image
-            src="/logo.webp"
-            alt="Olimpiakids"
-            width={240}
-            height={95}
+            src="/Trans_TV_2013.png"
+            alt="Trans TV"
+            width={160}
+            height={55}
             priority
-            className="w-auto h-auto max-w-[min(54vw,230px)] object-contain drop-shadow select-none"
-            onError={() => setLogoError(true)}
+            className="w-auto h-8 sm:h-11 md:h-13 object-contain drop-shadow-sm select-none"
           />
-        ) : (
-          <div className="font-display font-black text-2xl sm:text-3xl text-blue-900 tracking-wider">
-            OLIMPIAKIDS
-          </div>
-        )}
+        </div>
+
+        {/* LOGO OLIMPIAKIDS (SEBELAH KANAN) */}
+        <div className="relative flex items-center justify-center shrink-0">
+          {!logoError ? (
+            <Image
+              src="/logo.webp"
+              alt="Olimpiakids"
+              width={220}
+              height={85}
+              priority
+              className="w-auto h-9 sm:h-12 md:h-14 object-contain drop-shadow-sm select-none"
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <div className="font-display font-black text-2xl sm:text-3xl md:text-4xl text-blue-900 tracking-wider">
+              OLIMPIAKIDS
+            </div>
+          )}
+        </div>
       </motion.div>
 
-      {/* 2. HEADER EVENT ROW: [EVENT TITLE PILL CLEAN TANPA BADGE LIVE & TANPA STATUS FOOTER] */}
-      <div className="w-full flex items-center justify-center mb-4 sm:mb-5">
+      {/* 2. HEADER TITLE PILL: LEBARNYA DISAMARATAKAN DENGAN CONTAINER TABEL (100% LEBAR KONTEN) */}
+      <div className="w-full mb-3 sm:mb-4">
         <motion.div
-          animate={{ scale: [1, 1.015, 1] }}
+          animate={{ scale: [1, 1.01, 1] }}
           transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-          className="w-full max-w-xl bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-full py-3 sm:py-3.5 px-6 sm:px-8 border-[3.5px] border-white shadow-[0_5px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
+          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-2xl sm:rounded-full py-2.5 sm:py-3.5 px-4 sm:px-8 border-[3px] sm:border-[3.5px] border-white shadow-[0_4px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
         >
-          {/* Subtle Shimmer Ray */}
+          {/* Subtle Ray Animation */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite]" />
           
-          <h1 className="font-display font-black text-base sm:text-xl md:text-2xl tracking-tight uppercase leading-none drop-shadow-sm flex items-center justify-center gap-2">
+          <h1 className="font-display font-black text-sm sm:text-lg md:text-2xl tracking-tight uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
             <span>🍼</span>
             <span className="truncate">
               {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
@@ -120,33 +135,31 @@ export default function LiveLeaderboard() {
         </motion.div>
       </div>
 
-      {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) */}
-      <div className="w-full bg-white/95 backdrop-blur-md rounded-3xl border-[3.5px] border-white shadow-2xl p-2.5 sm:p-3">
+      {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - LEBAR SAMA DENGAN HEADER DI ATASNYA */}
+      <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl border-[3px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-2 sm:p-3 overflow-hidden">
         {/* HEADER ROW TABEL (12% 22% 41% 25%) */}
         <div
-          className="grid items-center bg-gradient-to-b from-blue-500 to-blue-600 text-white font-display font-black text-xs sm:text-sm uppercase tracking-wide rounded-2xl min-h-[44px] px-3 sm:px-4 py-2.5 mb-2.5 shadow-sm select-none"
+          className="grid items-center bg-gradient-to-b from-blue-500 to-blue-600 text-white font-display font-black text-[11px] sm:text-xs md:text-sm uppercase tracking-wide rounded-xl sm:rounded-2xl min-h-[38px] sm:min-h-[44px] px-2 sm:px-4 py-2 mb-2 sm:mb-2.5 shadow-sm select-none"
           style={{
             gridTemplateColumns: '12% 22% 41% 25%',
           }}
         >
-          <div className="text-center flex items-center justify-center gap-1">
-            <span>NO.</span>
-          </div>
-          <div className="text-center">NOMOR DADA</div>
-          <div className="text-center">NAMA ANAK</div>
+          <div className="text-center">NO.</div>
+          <div className="text-center truncate">NOMOR DADA</div>
+          <div className="text-center truncate">NAMA ANAK</div>
           <div className="text-center">TIMER</div>
         </div>
 
         {/* LIST BARIS PESERTA */}
-        <div>
+        <div className="w-full">
           <AnimatePresence>
             {isLoading && leaderboard.length === 0 ? (
-              <div className="py-14 text-center text-slate-500 font-sans font-bold text-sm flex flex-col items-center justify-center gap-2.5">
+              <div className="py-12 sm:py-14 text-center text-slate-500 font-sans font-bold text-sm flex flex-col items-center justify-center gap-2.5">
                 <div className="w-7 h-7 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-base text-blue-900 font-display">Memuat data peserta...</span>
+                <span className="text-sm sm:text-base text-blue-900 font-display">Memuat data peserta...</span>
               </div>
             ) : leaderboard.length === 0 ? (
-              <div className="py-14 text-center text-slate-500 font-sans font-bold text-sm">
+              <div className="py-12 sm:py-14 text-center text-slate-500 font-sans font-bold text-sm">
                 Belum ada data hasil lomba untuk babak ini.
               </div>
             ) : (
