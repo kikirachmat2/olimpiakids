@@ -1,16 +1,48 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createBrowserClient, createServerClient as createSsrServerClient } from '@supabase/ssr'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+function getValidSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  const isValidUrl = url && (url.startsWith('http://') || url.startsWith('https://'))
+
+  return {
+    supabaseUrl: isValidUrl ? url : 'https://placeholder-lomba-bayi.supabase.co',
+    supabaseAnonKey: key && key !== 'your_anon_key_here' ? key : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder-anon-key',
+  }
+}
 
 /**
- * Supabase client for client-side browser execution
+ * Client Supabase untuk Client Component (Browser)
  */
-export function createClient() {
+export function createBrowserSupabaseClient() {
+  const { supabaseUrl, supabaseAnonKey } = getValidSupabaseConfig()
   return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
 /**
- * Singleton instance for standard browser interactions
+ * Singleton client browser untuk pemakaian praktis di komponen klien
  */
-export const supabase = createClient()
+export const supabase = createBrowserSupabaseClient()
+
+/**
+ * Client Supabase untuk Server Component / Server Actions
+ */
+export function createServerSupabaseClient(cookieStore?: {
+  getAll: () => { name: string; value: string }[]
+  setAll?: (cookies: { name: string; value: string; options?: any }[]) => void
+}) {
+  const { supabaseUrl, supabaseAnonKey } = getValidSupabaseConfig()
+  return createSsrServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore ? cookieStore.getAll() : []
+      },
+      setAll(cookiesToSet) {
+        if (cookieStore?.setAll) {
+          cookieStore.setAll(cookiesToSet)
+        }
+      },
+    },
+  })
+}

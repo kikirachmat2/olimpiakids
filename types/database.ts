@@ -30,7 +30,19 @@ export interface RaceResult {
   created_at?: string
 }
 
-// Tipe gabungan untuk kebutuhan tampilan papan skor (Leaderboard)
-export interface LeaderboardEntry extends RaceResult {
-  participant: Participant
+// Tipe untuk baris Leaderboard
+export interface LeaderboardItem {
+  rank: number
+  participant_id: number
+  participant_name: string
+  bib_number: string
+  duration_ms: number | null
+  finish_time: string
+  status: ResultStatus
+}
+
+// Return wrapper standard query helper
+export interface QueryResponse<T> {
+  data: T | null
+  error: string | null
 }
