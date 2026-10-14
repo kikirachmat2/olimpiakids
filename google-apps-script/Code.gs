@@ -1,204 +1,38 @@
 /**
  * =========================================================================
- * GOOGLE APPS SCRIPT: SINKRONISASI DUA ARAH (TWO-WAY SYNC)
- * GOOGLE SHEETS <---> SUPABASE DATABASE
+ * GOOGLE APPS SCRIPT: SINKRONISASI SHEET "LIVE VISUAL" KE SUPABASE
  * Project: Lomba Bayi (Olimpiakids)
  * =========================================================================
  * 
- * 1. Arah 1 (Sheets -> Supabase): onEditTrigger / syncAllToSupabase
- * 2. Arah 2 (Supabase -> Sheets): doPost(e) via Supabase Database Webhook
+ * Script ini disesuaikan khusus dengan struktur Spreadsheet "DATA & TIMER BABYCRAWLING":
+ * Tab yang dibaca: "LIVE VISUAL" (atau "DATA KLASEMEN FIX")
+ * Baris 2 Header : No. | NOMOR DADA | NAMA ANAK | TIMER
+ * Baris 3 dst    : Data peserta & timer
  */
 
 // =========================================================================
-// 1. KONFIGURASI SUPABASE & WEBHOOK
+// 1. KONFIGURASI SUPABASE (PASTIKAN SUDAH DIISI KREDENSIAL ASLI)
 // =========================================================================
 
-// ISI INI: Masukkan Project URL Supabase Anda (contoh: "https://xyzcompany.supabase.co")
+// ISI INI: Masukkan Project URL Supabase Anda (misal: "https://xyzcompany.supabase.co")
 var SUPABASE_URL = "https://your-project-ref.supabase.co"; // ISI INI
 
 // ISI INI: Masukkan Service Role Key dari Supabase Dashboard (Settings -> API -> service_role)
 var SUPABASE_SERVICE_KEY = "your_service_role_key_here"; // ISI INI
 
-// Secret token validasi webhook (opsional, cocokkan jika Anda set header di Supabase Webhook)
-var WEBHOOK_SECRET = "olimpiakids_secret_token";
-
-// Nama Tab Sheet yang digunakan
-var SHEET_PESERTA = 'PESERTA';
-var SHEET_RACE = 'RACE_EVENT';
-var SHEET_HASIL = 'HASIL';
+// Nama Tab Sheet Utama yang ditampilkan di spreadsheet
+var TAB_LIVE_VISUAL = 'LIVE VISUAL';
+var TAB_FALLBACK = 'DATA KLASEMEN FIX';
 
 // =========================================================================
-// 2. FUNGSI POST WEBHOOK (SUPABASE -> GOOGLE SHEETS)
+// 2. FUNGSI SYNC LANGSUNG DARI TAB "LIVE VISUAL" KE SUPABASE
 // =========================================================================
 
 /**
- * Menerima HTTP POST request dari Supabase Database Webhook saat ada event INSERT / UPDATE
- * Body payload dari Supabase: { type, table, record, old_record, schema }
+ * Membaca data dari tab "LIVE VISUAL" dan menyimpannya langsung ke Supabase
+ * agar leaderboard di web langsung ter-update secara instan.
  */
-function doPost(e) {
-  try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return responseJson({ ok: false, error: "No post data found" });
-    }
-
-    var payload = JSON.parse(e.postData.contents);
-    var table = payload.table;
-    var type = payload.type; // 'INSERT', 'UPDATE', 'DELETE'
-    var record = payload.record;
-
-    if (!table || !record) {
-      return responseJson({ ok: false, error: "Invalid payload shape" });
-    }
-
-    // 1. Tangani event dari tabel 'race_results' (Saat Juri klik Finish di Web Admin)
-    if (table === 'race_results') {
-      if (type === 'INSERT') {
-        appendRowToSheet(SHEET_HASIL, {
-          id: record.id,
-          participant_id: record.participant_id,
-          race_event_id: record.race_event_id,
-          duration_ms: record.duration_ms,
-          status: record.status || 'finished'
-        });
-      } else if (type === 'UPDATE') {
-        updateRowInSheet(SHEET_HASIL, record.id, {
-          id: record.id,
-          participant_id: record.participant_id,
-          race_event_id: record.race_event_id,
-          duration_ms: record.duration_ms,
-          status: record.status
-        });
-      }
-    }
-
-    // 2. Tangani event dari tabel 'race_events' (Saat Mulai / Akhiri Lomba)
-    else if (table === 'race_events') {
-      if (type === 'INSERT') {
-        appendRowToSheet(SHEET_RACE, {
-          id: record.id,
-          name: record.name,
-          status: record.status,
-          start_time: record.start_time
-        });
-      } else if (type === 'UPDATE') {
-        updateRowInSheet(SHEET_RACE, record.id, {
-          id: record.id,
-          name: record.name,
-          status: record.status,
-          start_time: record.start_time
-        });
-      }
-    }
-
-    // 3. Tangani event dari tabel 'participants' (Jika ada pendaftaran baru di web)
-    else if (table === 'participants') {
-      if (type === 'INSERT') {
-        appendRowToSheet(SHEET_PESERTA, {
-          id: record.id,
-          name: record.name,
-          bib_number: record.bib_number,
-          age_months: record.age_months
-        });
-      } else if (type === 'UPDATE') {
-        updateRowInSheet(SHEET_PESERTA, record.id, {
-          id: record.id,
-          name: record.name,
-          bib_number: record.bib_number,
-          age_months: record.age_months
-        });
-      }
-    }
-
-    return responseJson({ ok: true, message: "Sync webhook success" });
-  } catch (err) {
-    return responseJson({ ok: false, error: err.toString() });
-  }
-}
-
-/**
- * Helper JSON response untuk Webhook
- */
-function responseJson(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-/**
- * Menambahkan row baru atau mengupdate jika ID sudah ada
- */
-function appendRowToSheet(sheetName, rowObj) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return;
-
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
-  if (headers.length === 0 || headers[0] === '') return;
-
-  // Cek apakah ID sudah ada, jika sudah ada panggil updateRowInSheet
-  if (rowObj.id) {
-    var data = sheet.getDataRange().getValues();
-    var idColIdx = headers.indexOf('id');
-    if (idColIdx !== -1) {
-      for (var r = 1; r < data.length; r++) {
-        if (String(data[r][idColIdx]) === String(rowObj.id)) {
-          updateRowInSheet(sheetName, rowObj.id, rowObj);
-          return;
-        }
-      }
-    }
-  }
-
-  // Susun urutan cell sesuai urutan header kolom sheet
-  var newRow = [];
-  for (var c = 0; c < headers.length; c++) {
-    var colName = headers[c];
-    newRow.push(rowObj[colName] !== undefined ? rowObj[colName] : '');
-  }
-
-  sheet.appendRow(newRow);
-}
-
-/**
- * Mengupdate baris yang cocok berdasarkan kolom 'id'
- */
-function updateRowInSheet(sheetName, id, rowObj) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return;
-
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return;
-
-  var headers = data[0];
-  var idColIdx = headers.indexOf('id');
-  if (idColIdx === -1) return;
-
-  var targetRowIdx = -1;
-  for (var r = 1; r < data.length; r++) {
-    if (String(data[r][idColIdx]) === String(id)) {
-      targetRowIdx = r + 1; // 1-based index untuk Sheets
-      break;
-    }
-  }
-
-  if (targetRowIdx !== -1) {
-    for (var c = 0; c < headers.length; c++) {
-      var colName = headers[c];
-      if (rowObj[colName] !== undefined) {
-        sheet.getRange(targetRowIdx, c + 1).setValue(rowObj[colName]);
-      }
-    }
-  } else {
-    // Jika tidak ditemukan, tambahkan sebagai row baru
-    appendRowToSheet(sheetName, rowObj);
-  }
-}
-
-// =========================================================
-// 3. FUNGSI SINKRONISASI DARI SHEETS KE SUPABASE (UPSERT)
-// =========================================================
-
-function syncAllToSupabase() {
+function syncLiveVisualToSupabase() {
   if (!SUPABASE_URL || SUPABASE_URL.indexOf("your-project-ref") !== -1) {
     Logger.log("⚠️ Peringatan: SUPABASE_URL belum diatur di Code.gs");
     return;
@@ -209,103 +43,99 @@ function syncAllToSupabase() {
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(TAB_LIVE_VISUAL) || ss.getSheetByName(TAB_FALLBACK);
 
-  var pesertaSheet = ss.getSheetByName(SHEET_PESERTA);
-  if (pesertaSheet) syncPeserta(pesertaSheet);
+  if (!sheet) {
+    Logger.log("❌ Sheet '" + TAB_LIVE_VISUAL + "' tidak ditemukan! Cek nama tab di spreadsheet.");
+    return;
+  }
 
-  var raceSheet = ss.getSheetByName(SHEET_RACE);
-  if (raceSheet) syncRaceEvents(raceSheet);
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 3) {
+    Logger.log("Sheet tidak memiliki data baris yang cukup.");
+    return;
+  }
 
-  var hasilSheet = ss.getSheetByName(SHEET_HASIL);
-  if (hasilSheet) syncHasil(hasilSheet);
+  // 1. Pastikan Sesi Lomba Aktif (Event ID 1) tersedia di tabel race_events
+  var eventPayload = [{
+    id: 1,
+    name: "LEADERBOARD BABY CRAWLING",
+    status: "running",
+    start_time: new Date().toISOString()
+  }];
+  sendToSupabase('race_events', eventPayload, 'id');
 
-  PropertiesService.getScriptProperties().setProperty('LAST_SYNC_AT', new Date().toISOString());
-  Logger.log("✅ Sinkronisasi Sheets -> Supabase selesai.");
-}
+  // 2. Baca Baris 3 dst (karena Baris 1: Judul, Baris 2: Header No/Nomor Dada/Nama/Timer)
+  var participantsPayload = [];
+  var resultsPayload = [];
 
-function syncPeserta(sheet) {
-  var rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return;
+  for (var i = 2; i < values.length; i++) {
+    var row = values[i];
+    var rank = row[0];
+    var bib = row[1];
+    var name = row[2];
+    var timerStr = row[3];
 
-  var payload = [];
-  for (var i = 1; i < rows.length; i++) {
-    var row = rows[i];
-    var id = row[0];
-    var name = row[1];
-    var bib = row[2];
-    var age = row[3];
-
+    // Lewati baris kosong
     if (!name || bib === '' || bib === null || bib === undefined) continue;
 
-    var item = {
+    var participantId = i - 1; // ID konsisten berdasarkan urutan baris
+    var durationMs = parseTimerToMs(timerStr);
+
+    participantsPayload.push({
+      id: participantId,
       name: String(name).trim(),
       bib_number: String(bib).trim(),
-      age_months: age !== '' && !isNaN(Number(age)) ? Number(age) : null
-    };
+      age_months: null
+    });
 
-    if (id !== '' && !isNaN(Number(id))) item.id = Number(id);
-    payload.push(item);
+    resultsPayload.push({
+      id: participantId,
+      participant_id: participantId,
+      race_event_id: 1,
+      duration_ms: durationMs,
+      finish_time: new Date().toISOString(),
+      status: 'finished'
+    });
   }
 
-  if (payload.length > 0) sendToSupabase('participants', payload, 'id');
+  if (participantsPayload.length > 0) {
+    // Upsert peserta
+    sendToSupabase('participants', participantsPayload, 'id');
+    // Upsert hasil klasemen
+    sendToSupabase('race_results', resultsPayload, 'id');
+    Logger.log("✅ Berhasil sync " + participantsPayload.length + " peserta dari tab '" + sheet.getName() + "' ke Supabase!");
+  }
 }
 
-function syncRaceEvents(sheet) {
-  var rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return;
+/**
+ * Konversi format waktu MM.SS.CC atau MM:SS.CC (contoh "00.15.00" atau "01.20.00") ke Milidetik
+ */
+function parseTimerToMs(timerVal) {
+  if (!timerVal) return 0;
 
-  var payload = [];
-  for (var i = 1; i < rows.length; i++) {
-    var row = rows[i];
-    var id = row[0];
-    var name = row[1];
-    var status = row[2];
-    var startTime = row[3];
+  var str = String(timerVal).trim();
+  // Pisahkan berdasarkan titik (.) atau titik dua (:)
+  var parts = str.split(/[.:]/);
 
-    if (!name) continue;
-
-    var item = {
-      name: String(name).trim(),
-      status: status ? String(status).toLowerCase().trim() : 'idle',
-      start_time: startTime ? parseDateToISO(startTime) : null
-    };
-
-    if (id !== '' && !isNaN(Number(id))) item.id = Number(id);
-    payload.push(item);
+  if (parts.length === 3) {
+    var min = parseInt(parts[0], 10) || 0;
+    var sec = parseInt(parts[1], 10) || 0;
+    var cs = parseInt(parts[2], 10) || 0; // centidetik (1/100 detik)
+    return (min * 60 * 1000) + (sec * 1000) + (cs * 10);
+  } else if (parts.length === 2) {
+    var sec = parseInt(parts[0], 10) || 0;
+    var cs = parseInt(parts[1], 10) || 0;
+    return (sec * 1000) + (cs * 10);
   }
 
-  if (payload.length > 0) sendToSupabase('race_events', payload, 'id');
+  var num = parseFloat(str);
+  return isNaN(num) ? 0 : Math.round(num * 1000);
 }
 
-function syncHasil(sheet) {
-  var rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return;
-
-  var payload = [];
-  for (var i = 1; i < rows.length; i++) {
-    var row = rows[i];
-    var id = row[0];
-    var participantId = row[1];
-    var raceEventId = row[2];
-    var durationMs = row[3];
-    var status = row[4];
-
-    if (!participantId || !raceEventId) continue;
-
-    var item = {
-      participant_id: Number(participantId),
-      race_event_id: Number(raceEventId),
-      duration_ms: durationMs !== '' && !isNaN(Number(durationMs)) ? Number(durationMs) : null,
-      status: status ? String(status).toLowerCase().trim() : 'finished'
-    };
-
-    if (id !== '' && !isNaN(Number(id))) item.id = Number(id);
-    payload.push(item);
-  }
-
-  if (payload.length > 0) sendToSupabase('race_results', payload, 'id');
-}
-
+/**
+ * Mengirimkan data ke PostgREST API Supabase via UPSERT
+ */
 function sendToSupabase(table, payload, onConflictColumn) {
   var endpoint = SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/' + table;
   if (onConflictColumn) {
@@ -328,51 +158,50 @@ function sendToSupabase(table, payload, onConflictColumn) {
     var response = UrlFetchApp.fetch(endpoint, options);
     var statusCode = response.getResponseCode();
     if (statusCode >= 200 && statusCode < 300) {
-      Logger.log("✅ Berhasil sync tabel '" + table + "' (" + payload.length + " baris)");
+      Logger.log("✅ Sukses sync " + table);
     } else {
-      Logger.log("❌ Gagal sync tabel '" + table + "': " + response.getContentText());
+      Logger.log("❌ Gagal sync " + table + " [" + statusCode + "]: " + response.getContentText());
     }
   } catch (err) {
-    Logger.log("❌ Error kirim request: " + err.toString());
+    Logger.log("❌ Error fetch ke Supabase [" + table + "]: " + err.toString());
   }
 }
 
-function parseDateToISO(val) {
-  if (!val) return null;
-  if (val instanceof Date) return val.toISOString();
-  var d = new Date(val);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-}
-
 // =========================================================
-// 4. TRIGGER OTOMATIS SAAT USER EDIT SHEET (onEdit)
+// 3. TRIGGER OTOMATIS SAAT CELL DIEDIT (onEdit)
 // =========================================================
 
 function onEditTrigger(e) {
   if (!e || !e.range) return;
 
   var sheetName = e.range.getSheet().getName();
-  if (sheetName !== SHEET_PESERTA && sheetName !== SHEET_RACE && sheetName !== SHEET_HASIL) {
+  // Pantau tab LIVE VISUAL atau DATA KLASEMEN FIX
+  if (sheetName !== TAB_LIVE_VISUAL && sheetName !== TAB_FALLBACK) {
     return;
   }
 
+  // Debounce 3 detik
   var scriptProperties = PropertiesService.getScriptProperties();
   var lastSyncStr = scriptProperties.getProperty('LAST_ONEDIT_TIME');
   var now = new Date().getTime();
 
   if (lastSyncStr) {
     var lastSync = parseInt(lastSyncStr, 10);
-    if (now - lastSync < 5000) {
-      return; // Debounce 5s
+    if (now - lastSync < 3000) {
+      return;
     }
   }
 
   scriptProperties.setProperty('LAST_ONEDIT_TIME', now.toString());
-  syncAllToSupabase();
+  syncLiveVisualToSupabase();
 }
 
+/**
+ * Pasang trigger otomatis onEdit
+ */
 function setupTrigger() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+
   var existingTriggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < existingTriggers.length; i++) {
     if (existingTriggers[i].getHandlerFunction() === 'onEditTrigger') {
@@ -385,5 +214,5 @@ function setupTrigger() {
     .onEdit()
     .create();
 
-  Logger.log("🎉 Trigger otomatis 'onEditTrigger' berhasil dipasang!");
+  Logger.log("🎉 Trigger onEdit untuk tab '" + TAB_LIVE_VISUAL + "' berhasil dipasang!");
 }
