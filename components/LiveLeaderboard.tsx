@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LeaderboardItem, RaceEvent } from '@/types/database'
@@ -8,85 +8,56 @@ import { getActiveRace, getLeaderboard } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import RankRow from './RankRow'
 
-// Data dummy fallback awal jika belum ada data di Supabase
-const SAMPLE_ROWS: LeaderboardItem[] = [
-  {
-    rank: 1,
-    participant_id: 1,
-    participant_name: 'Muhammad Arka',
-    bib_number: '07',
-    duration_ms: 12450, // 00.12.45
-    finish_time: '2026-10-14T15:01:12.450Z',
-    status: 'finished',
-  },
-  {
-    rank: 2,
-    participant_id: 2,
-    participant_name: 'Gwen Aurelia',
-    bib_number: '12',
-    duration_ms: 13820, // 00.13.82
-    finish_time: '2026-10-14T15:01:13.820Z',
-    status: 'finished',
-  },
-  {
-    rank: 3,
-    participant_id: 3,
-    participant_name: 'Rayyan Al-Fatih',
-    bib_number: '03',
-    duration_ms: 15110, // 00.15.11
-    finish_time: '2026-10-14T15:01:15.110Z',
-    status: 'finished',
-  },
-  {
-    rank: 4,
-    participant_id: 4,
-    participant_name: 'Alana Kirana',
-    bib_number: '18',
-    duration_ms: 16900, // 00.16.90
-    finish_time: '2026-10-14T15:01:16.900Z',
-    status: 'finished',
-  },
-  {
-    rank: 5,
-    participant_id: 5,
-    participant_name: 'Mikail Ibrahim',
-    bib_number: '05',
-    duration_ms: 18240, // 00.18.24
-    finish_time: '2026-10-14T15:01:18.240Z',
-    status: 'finished',
-  },
-]
-
 export default function LiveLeaderboard() {
-  const [activeRace, setActiveRace] = useState<RaceEvent | null>({
-    id: 1,
-    name: 'LEADERBOARD BABY CRAWLING',
-    status: 'running',
-    start_time: '2026-10-14T15:00:00.000Z',
-  })
-  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>(SAMPLE_ROWS)
+  const [activeRace, setActiveRace] = useState<RaceEvent | null>(null)
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [isRealtimeSubscribed, setIsRealtimeSubscribed] = useState(false)
   const [logoError, setLogoError] = useState(false)
-  const [hasLiveConnection, setHasLiveConnection] = useState(false)
 
   // 1. Fetch data dari Supabase
-  const loadLeaderboardData = async () => {
+  const loadLeaderboardData = useCallback(async () => {
     try {
+      setFetchError(null)
+      console.log('🔄 [Leaderboard] Memuat data perlombaan dari Supabase...')
+
       const raceRes = await getActiveRace()
+      if (raceRes.error) {
+        console.warn('⚠️ [Leaderboard] Gagal memuat active race:', raceRes.error)
+        setFetchError(raceRes.error)
+        setIsLoading(false)
+        return
+      }
+
       if (raceRes.data) {
         setActiveRace(raceRes.data)
         const boardRes = await getLeaderboard(raceRes.data.id)
-        if (boardRes.data && boardRes.data.length > 0) {
-          setLeaderboard(boardRes.data)
+        if (boardRes.error) {
+          console.warn('⚠️ [Leaderboard] Gagal memuat leaderboard:', boardRes.error)
+          setFetchError(boardRes.error)
+        } else {
+          setLeaderboard(boardRes.data || [])
+          console.log(`✅ [Leaderboard] Berhasil memuat ${boardRes.data?.length || 0} peserta.`)
         }
+      } else {
+        setActiveRace(null)
+        setLeaderboard([])
       }
-    } catch (err) {
-      console.error('Error fetching leaderboard data:', err)
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Gagal menghubungi server'
+      console.error('❌ [Leaderboard] Error fetch:', errMsg)
+      setFetchError(errMsg)
+    } finally {
+      setIsLoading(false)
     }
-  }
+  }, [])
 
   // 2. Initial load + Supabase Realtime Subscription
   useEffect(() => {
     loadLeaderboardData()
+
+    console.log('📡 [Realtime] Menghubungkan ke channel Supabase "race-updates"...')
 
     // Dengarkan perubahan pada race_results dan race_events
     const channel = supabase
@@ -94,29 +65,81 @@ export default function LiveLeaderboard() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'race_results' },
-        () => {
+        (payload) => {
+          console.log('⚡ [Realtime Event] Perubahan terdeteksi pada race_results:', payload)
           loadLeaderboardData()
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'race_events' },
-        () => {
+        (payload) => {
+          console.log('⚡ [Realtime Event] Perubahan terdeteksi pada race_events:', payload)
           loadLeaderboardData()
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        console.log(`📡 [Realtime Status]: ${status}`, err || '')
         if (status === 'SUBSCRIBED') {
-          setHasLiveConnection(true)
-        } else {
-          setHasLiveConnection(false)
+          setIsRealtimeSubscribed(true)
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setIsRealtimeSubscribed(false)
         }
       })
 
     return () => {
+      console.log('🔌 [Realtime] Melepas channel "race-updates"')
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [loadLeaderboardData])
+
+  // Logic Status Indicator yang akurat
+  const renderStatusIndicator = () => {
+    if (fetchError) {
+      return (
+        <span className="text-rose-500 font-bold flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-rose-500" />
+          ● Offline
+        </span>
+      )
+    }
+
+    if (isLoading && leaderboard.length === 0) {
+      return (
+        <span className="text-slate-400 font-bold flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />
+          ○ Memuat data...
+        </span>
+      )
+    }
+
+    if (leaderboard.length === 0) {
+      return (
+        <span className="text-slate-500 font-medium flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-slate-300" />
+          ○ Tidak ada data
+        </span>
+      )
+    }
+
+    // Jika data ada:
+    if (isRealtimeSubscribed) {
+      return (
+        <span className="text-emerald-600 font-black flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          ● LIVE
+        </span>
+      )
+    }
+
+    // Ada data tapi realtime belum subscribed / reconnecting
+    return (
+      <span className="text-amber-500 font-black flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-amber-400" />
+        ● LIVE
+      </span>
+    )
+  }
 
   return (
     <div className="relative z-10 w-full max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-8 flex flex-col items-center">
@@ -147,10 +170,10 @@ export default function LiveLeaderboard() {
       <div className="w-full flex items-center justify-center gap-2.5 sm:gap-3 mb-4 sm:mb-5">
         {/* EVENT TITLE PILL */}
         <div className="flex-1 max-w-xl bg-gradient-to-b from-blue-500 to-blue-600 text-white rounded-full py-2.5 sm:py-3.5 px-4 sm:px-6 border-[3px] border-white shadow-[0_4px_0_rgba(29,78,216,0.6)] text-center">
-          <h1 className="font-display font-black text-base sm:text-xl md:text-2xl tracking-tight uppercase leading-none drop-shadow-sm">
+          <h1 className="font-display font-black text-base sm:text-xl md:text-2xl tracking-tight uppercase leading-none drop-shadow-sm truncate">
             {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
               ? activeRace.name
-              : 'LEADERBOARD BABY CRAWLING'}
+              : activeRace?.name || 'LEADERBOARD BABY CRAWLING'}
           </h1>
         </div>
 
@@ -187,7 +210,12 @@ export default function LiveLeaderboard() {
         {/* LIST BARIS PESERTA */}
         <div>
           <AnimatePresence>
-            {leaderboard.length === 0 ? (
+            {isLoading && leaderboard.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 font-sans font-bold text-sm flex flex-col items-center justify-center gap-2">
+                <div className="w-6 h-6 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span>Memuat data leaderboard...</span>
+              </div>
+            ) : leaderboard.length === 0 ? (
               <div className="py-12 text-center text-slate-500 font-sans font-bold text-sm">
                 Belum ada data hasil lomba untuk babak ini.
               </div>
@@ -207,12 +235,10 @@ export default function LiveLeaderboard() {
         </div>
       </div>
 
-      {/* 4. STATUS BAR KECIL DI KANAN BAWAH */}
+      {/* 4. STATUS BAR AKURAT DI KANAN BAWAH */}
       <div className="w-full flex justify-end mt-3 pr-1">
-        <div className="inline-flex items-center gap-1.5 bg-white/70 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-sans font-bold text-slate-600 shadow-xs">
-          <span className={hasLiveConnection ? 'text-emerald-500' : 'text-slate-400'}>
-            {hasLiveConnection ? '● LIVE' : '○ Menunggu data'}
-          </span>
+        <div className="inline-flex items-center gap-1.5 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-[11px] font-sans shadow-xs border border-white">
+          {renderStatusIndicator()}
         </div>
       </div>
     </div>
