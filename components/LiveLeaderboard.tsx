@@ -46,10 +46,11 @@ export default function LiveLeaderboard() {
     }
   }, [])
 
-  // 2. Initial load + Supabase Realtime Subscription
+  // 2. Initial load + Supabase Realtime Subscription + Auto Polling Fallback (setiap 2 detik)
   useEffect(() => {
     loadLeaderboardData()
 
+    // Realtime channel
     const channel = supabase
       .channel('race-updates')
       .on(
@@ -66,10 +67,23 @@ export default function LiveLeaderboard() {
           loadLeaderboardData()
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'participants' },
+        () => {
+          loadLeaderboardData()
+        }
+      )
       .subscribe()
+
+    // Polling interval setiap 2 detik agar perubahan dari Google Sheets langsung muncul tanpa delay
+    const interval = setInterval(() => {
+      loadLeaderboardData()
+    }, 2000)
 
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(interval)
     }
   }, [loadLeaderboardData])
 
