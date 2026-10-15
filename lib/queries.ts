@@ -308,6 +308,7 @@ export async function getLeaderboard(eventId: number): Promise<QueryResponse<Lea
         id,
         participant_id,
         duration_ms,
+        position,
         finish_time,
         status,
         participants (
@@ -317,7 +318,8 @@ export async function getLeaderboard(eventId: number): Promise<QueryResponse<Lea
         )
       `)
       .eq('race_event_id', eventId)
-      .order('duration_ms', { ascending: true })
+      .order('position', { ascending: true, nullsFirst: false })
+      .order('duration_ms', { ascending: true, nullsFirst: false })
 
     if (error) {
       return { data: null, error: `Gagal memuat papan skor: ${error.message}` }

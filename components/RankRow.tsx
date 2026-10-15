@@ -13,7 +13,7 @@ interface RankRowProps {
 
 // Format timer MM.SS.CC (menit.detik.centidetik) contoh: 15000ms -> "00.15.00"
 export function formatTimerMMSSCC(ms: number | null): string {
-  if (ms === null || ms === undefined || isNaN(ms)) return '00.00.00'
+  if (ms === null || ms === undefined || isNaN(ms)) return '--.--.--'
   const min = Math.floor(ms / 60000)
   const sec = Math.floor((ms % 60000) / 1000)
   const cs = Math.floor((ms % 1000) / 10)
