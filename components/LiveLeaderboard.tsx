@@ -81,32 +81,32 @@ export default function LiveLeaderboard() {
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
         className="flex flex-col items-center justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4 px-2 select-none"
       >
-        {/* LOGO TRANS TV (KECIL DI ATAS) */}
+        {/* LOGO TRANS TV (LEBIH KECIL DI ATAS) */}
         <div className="relative flex items-center justify-center">
           <Image
             src="/Trans_TV_2013.png"
             alt="Trans TV"
-            width={120}
-            height={40}
+            width={100}
+            height={32}
             priority
-            className="w-auto h-6 sm:h-8 md:h-9 object-contain drop-shadow-sm opacity-90 hover:opacity-100 transition-opacity"
+            className="w-auto h-4 sm:h-5 md:h-6 object-contain drop-shadow-sm opacity-85 hover:opacity-100 transition-opacity"
           />
         </div>
 
-        {/* LOGO OLIMPIAKIDS (BESAR DI BAWAH) */}
-        <div className="relative flex items-center justify-center">
+        {/* LOGO OLIMPIAKIDS (LEBIH BESAR DI BAWAH) */}
+        <div className="relative flex items-center justify-center -mt-0.5 sm:-mt-1">
           {!logoError ? (
             <Image
               src="/olimpiakids.png"
               alt="Olimpiakids"
-              width={340}
-              height={130}
+              width={420}
+              height={160}
               priority
-              className="w-auto h-14 sm:h-20 md:h-24 lg:h-28 object-contain drop-shadow-md"
+              className="w-auto h-20 sm:h-28 md:h-36 lg:h-40 xl:h-44 object-contain drop-shadow-lg"
               onError={() => setLogoError(true)}
             />
           ) : (
-            <div className="font-display font-black text-3xl sm:text-5xl md:text-6xl text-blue-900 tracking-wider drop-shadow-md">
+            <div className="font-display font-black text-4xl sm:text-6xl md:text-7xl text-blue-900 tracking-wider drop-shadow-md">
               OLIMPIAKIDS
             </div>
           )}
