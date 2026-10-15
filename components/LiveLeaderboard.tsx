@@ -89,38 +89,38 @@ export default function LiveLeaderboard() {
 
   return (
     <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-5 flex flex-col items-center">
-      {/* 1. BRANDING LOGO: ATAS BAWAH (TRANS TV & OLIMPIAKIDS DIPERBESAR DI SEMUA RATIO) */}
+      {/* 1. BRANDING LOGO: ATAS BAWAH (TRANS TV SEBAGAI PENYELENGGARA LEBIH KECIL, OLIMPIAKIDS SEBAGAI ACARA UTAMA LEBIH LEBAR & DOMINAN) */}
       <motion.div
         animate={{ y: [0, -4, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex flex-col items-center justify-center gap-1.5 sm:gap-2.5 mb-3 sm:mb-5 px-2 select-none"
+        className="w-full flex flex-col items-center justify-center gap-1 sm:gap-2 mb-3 sm:mb-4 px-2 select-none"
       >
-        {/* LOGO TRANS TV */}
+        {/* LOGO TRANS TV (PENYELENGGARA: LEBAR KANAN-KIRI DIBATASI JAUH LEBIH RAMPING) */}
         <div className="relative flex items-center justify-center">
           <Image
             src="/Trans_TV_2013.png"
             alt="Trans TV"
-            width={180}
-            height={55}
+            width={240}
+            height={40}
             priority
-            className="w-auto h-7 sm:h-9 md:h-11 lg:h-12 object-contain drop-shadow-sm opacity-95 hover:opacity-100 transition-opacity"
+            className="w-24 sm:w-32 md:w-40 lg:w-44 h-auto object-contain drop-shadow-sm opacity-90 hover:opacity-100 transition-opacity"
           />
         </div>
 
-        {/* LOGO OLIMPIAKIDS (BESAR DAN JELAS DI SEMUA RATIO) */}
-        <div className="relative flex items-center justify-center -mt-0.5 sm:-mt-1">
+        {/* LOGO OLIMPIAKIDS (ACARA UTAMA: LEBAR DAN TINGGI JAUH LEBIH BESAR DARI TRANS TV DI SEMUA RASIO) */}
+        <div className="relative flex items-center justify-center w-full max-w-[280px] sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl -mt-1 sm:-mt-2">
           {!logoError ? (
             <Image
               src="/olimpiakids.png"
               alt="Olimpiakids"
-              width={540}
-              height={200}
+              width={650}
+              height={365}
               priority
-              className="w-auto h-24 sm:h-36 md:h-44 lg:h-52 xl:h-56 object-contain drop-shadow-lg"
+              className="w-full h-auto max-h-24 sm:max-h-36 md:max-h-48 lg:max-h-56 xl:max-h-64 object-contain drop-shadow-lg"
               onError={() => setLogoError(true)}
             />
           ) : (
-            <div className="font-display font-black text-5xl sm:text-7xl md:text-8xl text-blue-900 tracking-wider drop-shadow-md">
+            <div className="font-display font-black text-4xl sm:text-6xl md:text-7xl text-blue-900 tracking-wider drop-shadow-md">
               OLIMPIAKIDS
             </div>
           )}
