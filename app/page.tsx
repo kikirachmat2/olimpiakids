@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function HomePage() {
   return (
-    <main className="relative min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 text-slate-800 overflow-x-hidden selection:bg-amber-400 selection:text-slate-900 flex flex-col justify-center py-4 sm:py-6">
+    <main className="relative min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 text-slate-800 overflow-x-hidden selection:bg-amber-400 selection:text-slate-900 flex flex-col justify-start sm:justify-center py-2 sm:py-4">
       {/* Tombol Fullscreen di Kanan Atas */}
       <FullscreenButton />
 
