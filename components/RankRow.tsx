@@ -54,15 +54,15 @@ export default function RankRow({
       </motion.span>
     )
   } else if (isSecond) {
-    // 🥈 Juara 2: Special Silver perak berkilau
+    // 🥈 Juara 2: Special Silver / Platinum Metalik tegas (Jauh lebih pekat & kontras dari baris 4 kebawah)
     rowStyle =
-      'bg-gradient-to-b from-slate-100 via-gray-200 to-slate-200 border-2 border-slate-300 text-slate-800 shadow-[0_3px_0_rgba(148,163,184,1)] sm:shadow-[0_4px_0_rgba(148,163,184,1)] ring-1 ring-slate-300/60'
-    timerStyle = 'bg-gradient-to-b from-slate-600 to-slate-700 text-white shadow-md'
+      'bg-gradient-to-b from-slate-200 via-zinc-300 to-slate-400 border-[2.5px] sm:border-[3px] border-slate-400 text-slate-900 shadow-[0_4px_0_rgba(100,116,139,1)] sm:shadow-[0_5px_0_rgba(100,116,139,1)] ring-2 ring-slate-300/80'
+    timerStyle = 'bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-md border border-slate-500/30'
     badgeIcon = (
       <motion.span
-        animate={{ scale: [1, 1.15, 1], rotate: [0, -6, 6, 0] }}
+        animate={{ scale: [1, 1.2, 1], rotate: [0, -7, 7, 0] }}
         transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut', delay: 0.2 }}
-        className="inline-block mr-0.5 sm:mr-1 text-base sm:text-xl md:text-2xl"
+        className="inline-block mr-0.5 sm:mr-1 text-base sm:text-2xl md:text-3xl drop-shadow-sm"
       >
         🥈
       </motion.span>
@@ -86,14 +86,16 @@ export default function RankRow({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: -15, scale: 0.98 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0 }}
-      whileHover={{ scale: 1.01, transition: { duration: 0.15 } }}
+      initial={{ opacity: 0, y: 24, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
+      whileHover={{ scale: 1.015, y: -1, transition: { duration: 0.15 } }}
       transition={{
-        duration: 0.35,
-        delay: index * 0.03,
-        ease: 'easeOut',
+        type: 'spring',
+        stiffness: 280,
+        damping: 22,
+        mass: 0.8,
+        delay: index * 0.06,
       }}
       className={`grid items-center rounded-xl sm:rounded-2xl min-h-[48px] sm:min-h-[58px] md:min-h-[64px] mb-2 sm:mb-2.5 px-3 sm:px-6 py-2 sm:py-2.5 select-none transition-all ${rowStyle}`}
       style={{
