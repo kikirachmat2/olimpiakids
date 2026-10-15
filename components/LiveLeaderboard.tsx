@@ -74,56 +74,56 @@ export default function LiveLeaderboard() {
   }, [loadLeaderboardData])
 
   return (
-    <div className="relative z-10 w-full max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6 flex flex-col items-center">
-      {/* 1. BRANDING LOGO: KIRI TRANS TV, KANAN OLIMPIAKIDS (RATA SEJAJAR & RESPONSIF) */}
+    <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-5 flex flex-col items-center">
+      {/* 1. BRANDING LOGO: ATAS BAWAH (TRANS TV KECIL DI ATAS, OLIMPIAKIDS BESAR DI BAWAH) */}
       <motion.div
-        animate={{ y: [0, -3.5, 0] }}
+        animate={{ y: [0, -4, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex items-center justify-center gap-3 sm:gap-6 md:gap-8 mb-3 sm:mb-4 px-2"
+        className="flex flex-col items-center justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4 px-2 select-none"
       >
-        {/* LOGO TRANS TV (SEBELAH KIRI) */}
-        <div className="relative flex items-center justify-center shrink-0">
+        {/* LOGO TRANS TV (KECIL DI ATAS) */}
+        <div className="relative flex items-center justify-center">
           <Image
             src="/Trans_TV_2013.png"
             alt="Trans TV"
-            width={160}
-            height={55}
+            width={120}
+            height={40}
             priority
-            className="w-auto h-8 sm:h-11 md:h-13 object-contain drop-shadow-sm select-none"
+            className="w-auto h-6 sm:h-8 md:h-9 object-contain drop-shadow-sm opacity-90 hover:opacity-100 transition-opacity"
           />
         </div>
 
-        {/* LOGO OLIMPIAKIDS (SEBELAH KANAN) */}
-        <div className="relative flex items-center justify-center shrink-0">
+        {/* LOGO OLIMPIAKIDS (BESAR DI BAWAH) */}
+        <div className="relative flex items-center justify-center">
           {!logoError ? (
             <Image
               src="/olimpiakids.png"
               alt="Olimpiakids"
-              width={240}
-              height={90}
+              width={340}
+              height={130}
               priority
-              className="w-auto h-9 sm:h-12 md:h-14 object-contain drop-shadow-sm select-none"
+              className="w-auto h-14 sm:h-20 md:h-24 lg:h-28 object-contain drop-shadow-md"
               onError={() => setLogoError(true)}
             />
           ) : (
-            <div className="font-display font-black text-2xl sm:text-3xl md:text-4xl text-blue-900 tracking-wider">
+            <div className="font-display font-black text-3xl sm:text-5xl md:text-6xl text-blue-900 tracking-wider drop-shadow-md">
               OLIMPIAKIDS
             </div>
           )}
         </div>
       </motion.div>
 
-      {/* 2. HEADER TITLE PILL: LEBARNYA DISAMARATAKAN DENGAN CONTAINER TABEL (100% LEBAR KONTEN) */}
+      {/* 2. HEADER TITLE PILL: LEBAR LEBIH LUAS DI TV, SELARAS DENGAN CONTAINER TABEL */}
       <div className="w-full mb-3 sm:mb-4">
         <motion.div
-          animate={{ scale: [1, 1.01, 1] }}
+          animate={{ scale: [1, 1.008, 1] }}
           transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-2xl sm:rounded-full py-2.5 sm:py-3.5 px-4 sm:px-8 border-[3px] sm:border-[3.5px] border-white shadow-[0_4px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
+          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-2xl sm:rounded-full py-2.5 sm:py-3.5 md:py-4 px-4 sm:px-8 border-[3px] sm:border-[4px] border-white shadow-[0_4px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
         >
           {/* Subtle Ray Animation */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite]" />
-          
-          <h1 className="font-display font-black text-sm sm:text-lg md:text-2xl tracking-tight uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
+
+          <h1 className="font-display font-black text-sm sm:text-xl md:text-2xl lg:text-3xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-2 sm:gap-3">
             <span>🍼</span>
             <span className="truncate">
               {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
@@ -135,18 +135,18 @@ export default function LiveLeaderboard() {
         </motion.div>
       </div>
 
-      {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - LEBAR SAMA DENGAN HEADER DI ATASNYA */}
-      <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl border-[3px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-2 sm:p-3 overflow-hidden">
-        {/* HEADER ROW TABEL (12% 22% 41% 25%) */}
+      {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - LEBAR DISESUAIKAN UNTUK DISPLAY TV */}
+      <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl border-[3px] sm:border-[4px] border-white shadow-xl sm:shadow-2xl p-2.5 sm:p-4 md:p-5 overflow-hidden">
+        {/* HEADER ROW TABEL (10% 20% 48% 22%) */}
         <div
-          className="grid items-center bg-gradient-to-b from-blue-500 to-blue-600 text-white font-display font-black text-[11px] sm:text-xs md:text-sm uppercase tracking-wide rounded-xl sm:rounded-2xl min-h-[38px] sm:min-h-[44px] px-2 sm:px-4 py-2 mb-2 sm:mb-2.5 shadow-sm select-none"
+          className="grid items-center bg-gradient-to-b from-blue-500 to-blue-600 text-white font-display font-black text-[11px] sm:text-sm md:text-base lg:text-lg uppercase tracking-wide rounded-xl sm:rounded-2xl min-h-[40px] sm:min-h-[48px] md:min-h-[52px] px-3 sm:px-6 py-2 sm:py-2.5 mb-2 sm:mb-3 shadow-sm select-none"
           style={{
-            gridTemplateColumns: '12% 22% 41% 25%',
+            gridTemplateColumns: '10% 20% 48% 22%',
           }}
         >
           <div className="text-center">NO.</div>
           <div className="text-center truncate">NOMOR DADA</div>
-          <div className="text-center truncate">NAMA ANAK</div>
+          <div className="text-left pl-2 sm:pl-4 truncate">NAMA ANAK</div>
           <div className="text-center">TIMER</div>
         </div>
 
