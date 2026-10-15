@@ -97,10 +97,10 @@ export default function LiveLeaderboard() {
         <div className="relative flex items-center justify-center shrink-0">
           {!logoError ? (
             <Image
-              src="/logo.webp"
+              src="/olimpiakids.png"
               alt="Olimpiakids"
-              width={220}
-              height={85}
+              width={240}
+              height={90}
               priority
               className="w-auto h-9 sm:h-12 md:h-14 object-contain drop-shadow-sm select-none"
               onError={() => setLogoError(true)}
