@@ -89,38 +89,38 @@ export default function LiveLeaderboard() {
 
   return (
     <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-5 flex flex-col items-center">
-      {/* 1. BRANDING LOGO: ATAS BAWAH (TRANS TV KECIL DI ATAS, OLIMPIAKIDS BESAR DI BAWAH) */}
+      {/* 1. BRANDING LOGO: ATAS BAWAH (TRANS TV & OLIMPIAKIDS DIPERBESAR DI SEMUA RATIO) */}
       <motion.div
         animate={{ y: [0, -4, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex flex-col items-center justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4 px-2 select-none"
+        className="flex flex-col items-center justify-center gap-1.5 sm:gap-2.5 mb-3 sm:mb-5 px-2 select-none"
       >
-        {/* LOGO TRANS TV (LEBIH KECIL DI ATAS) */}
+        {/* LOGO TRANS TV */}
         <div className="relative flex items-center justify-center">
           <Image
             src="/Trans_TV_2013.png"
             alt="Trans TV"
-            width={100}
-            height={32}
+            width={180}
+            height={55}
             priority
-            className="w-auto h-4 sm:h-5 md:h-6 object-contain drop-shadow-sm opacity-85 hover:opacity-100 transition-opacity"
+            className="w-auto h-7 sm:h-9 md:h-11 lg:h-12 object-contain drop-shadow-sm opacity-95 hover:opacity-100 transition-opacity"
           />
         </div>
 
-        {/* LOGO OLIMPIAKIDS (LEBIH BESAR DI BAWAH) */}
+        {/* LOGO OLIMPIAKIDS (BESAR DAN JELAS DI SEMUA RATIO) */}
         <div className="relative flex items-center justify-center -mt-0.5 sm:-mt-1">
           {!logoError ? (
             <Image
               src="/olimpiakids.png"
               alt="Olimpiakids"
-              width={420}
-              height={160}
+              width={540}
+              height={200}
               priority
-              className="w-auto h-20 sm:h-28 md:h-36 lg:h-40 xl:h-44 object-contain drop-shadow-lg"
+              className="w-auto h-24 sm:h-36 md:h-44 lg:h-52 xl:h-56 object-contain drop-shadow-lg"
               onError={() => setLogoError(true)}
             />
           ) : (
-            <div className="font-display font-black text-4xl sm:text-6xl md:text-7xl text-blue-900 tracking-wider drop-shadow-md">
+            <div className="font-display font-black text-5xl sm:text-7xl md:text-8xl text-blue-900 tracking-wider drop-shadow-md">
               OLIMPIAKIDS
             </div>
           )}
