@@ -12,22 +12,22 @@ export default function CloudsBackground() {
     { id: 4, top: '76%', right: '4%', scale: 1.2, duration: 6.2, delay: 1.8 },
   ]
 
-  // Bintang kuning berkilau (★ & ✨) di sekeliling
+  // Bintang kuning berkilau (★ & ✨) di sekeliling - diperbesar signifikan
   const sparkles = [
-    { id: 1, top: '4%', left: '7%', text: '★', size: 'text-3xl sm:text-4xl', color: 'text-amber-300', dur: 2.2 },
-    { id: 2, top: '7%', right: '11%', text: '★', size: 'text-2xl sm:text-3xl', color: 'text-yellow-300', dur: 2.8 },
-    { id: 3, top: '38%', left: '6%', text: '✨', size: 'text-2xl sm:text-3xl', color: 'text-yellow-200', dur: 3 },
-    { id: 4, top: '44%', right: '8%', text: '✨', size: 'text-2xl sm:text-3xl', color: 'text-yellow-200', dur: 2.5 },
-    { id: 5, bottom: '12%', left: '8%', text: '★', size: 'text-3xl sm:text-4xl', color: 'text-amber-300', dur: 2.6 },
-    { id: 6, bottom: '8%', right: '7%', text: '★', size: 'text-3xl sm:text-4xl', color: 'text-yellow-300', dur: 2.4 },
+    { id: 1, top: '4%', left: '5%', text: '★', size: 'text-4xl sm:text-6xl lg:text-7xl', color: 'text-amber-300', dur: 2.2 },
+    { id: 2, top: '6%', right: '8%', text: '★', size: 'text-3xl sm:text-5xl lg:text-6xl', color: 'text-yellow-300', dur: 2.8 },
+    { id: 3, top: '38%', left: '3.5%', text: '✨', size: 'text-3xl sm:text-5xl lg:text-6xl', color: 'text-yellow-200', dur: 3 },
+    { id: 4, top: '44%', right: '3.5%', text: '✨', size: 'text-3xl sm:text-5xl lg:text-6xl', color: 'text-yellow-200', dur: 2.5 },
+    { id: 5, bottom: '10%', left: '5%', text: '★', size: 'text-4xl sm:text-6xl lg:text-7xl', color: 'text-amber-300', dur: 2.6 },
+    { id: 6, bottom: '8%', right: '5%', text: '★', size: 'text-4xl sm:text-6xl lg:text-7xl', color: 'text-yellow-300', dur: 2.4 },
   ]
 
-  // Aksen mainan & balon anak-anak melayang lembut di background
+  // Aksen mainan & balon anak-anak melayang - diperbesar drastis (balon, bintang, dot, boneka)
   const kidElements = [
-    { id: 1, top: '22%', left: '6%', icon: '🎈', dur: 7, delay: 0 },
-    { id: 2, top: '28%', right: '5%', icon: '⭐', dur: 6.5, delay: 1 },
-    { id: 3, bottom: '24%', left: '4%', icon: '🍼', dur: 7.2, delay: 2 },
-    { id: 4, bottom: '20%', right: '5%', icon: '🧸', dur: 8, delay: 0.5 },
+    { id: 1, top: '19%', left: '3.5%', icon: '🎈', dur: 7, delay: 0, size: 'text-5xl sm:text-6xl md:text-7xl lg:text-8xl' },
+    { id: 2, top: '25%', right: '3.5%', icon: '⭐', dur: 6.5, delay: 1, size: 'text-5xl sm:text-6xl md:text-7xl lg:text-8xl' },
+    { id: 3, bottom: '26%', left: '2.5%', icon: '🍼', dur: 7.2, delay: 2, size: 'text-5xl sm:text-6xl md:text-7xl lg:text-8xl' },
+    { id: 4, bottom: '20%', right: '2.5%', icon: '🧸', dur: 8, delay: 0.5, size: 'text-5xl sm:text-6xl md:text-7xl lg:text-8xl' },
   ]
 
   return (
@@ -36,7 +36,7 @@ export default function CloudsBackground() {
       {clouds.map((cloud) => (
         <motion.div
           key={cloud.id}
-          className="absolute opacity-75"
+          className="absolute opacity-80"
           style={{
             top: cloud.top,
             left: cloud.left,
@@ -54,21 +54,21 @@ export default function CloudsBackground() {
           }}
         >
           <div
-            className="relative bg-white rounded-full w-28 sm:w-44 h-11 sm:h-16 shadow-md drop-shadow-sm"
+            className="relative bg-white rounded-full w-32 sm:w-52 h-12 sm:h-20 shadow-md drop-shadow-sm"
             style={{ transform: `scale(${cloud.scale})` }}
           >
-            <div className="absolute -top-5 sm:-top-8 left-3 sm:left-4 bg-white rounded-full w-12 sm:w-18 h-12 sm:h-18" />
-            <div className="absolute -top-7 sm:-top-11 left-9 sm:left-14 bg-white rounded-full w-15 sm:w-22 h-15 sm:h-22" />
-            <div className="absolute -top-4 sm:-top-7 right-3 sm:right-5 bg-white rounded-full w-11 sm:w-15 h-11 sm:h-15" />
+            <div className="absolute -top-6 sm:-top-10 left-3 sm:left-5 bg-white rounded-full w-14 sm:w-22 h-14 sm:h-22" />
+            <div className="absolute -top-8 sm:-top-14 left-10 sm:left-18 bg-white rounded-full w-18 sm:w-28 h-18 sm:h-28" />
+            <div className="absolute -top-5 sm:-top-9 right-3 sm:right-6 bg-white rounded-full w-12 sm:w-18 h-12 sm:h-18" />
           </div>
         </motion.div>
       ))}
 
-      {/* 2. ELEMEN MAINAN ANAK-ANAK MENGAMBANG */}
+      {/* 2. ELEMEN MAINAN ANAK-ANAK MENGAMBANG (BALON, BINTANG, BONEKA, DOT) */}
       {kidElements.map((el) => (
         <motion.div
           key={el.id}
-          className="absolute text-2xl sm:text-3xl select-none opacity-80 drop-shadow"
+          className={`absolute ${el.size} select-none opacity-90 drop-shadow-[0_8px_16px_rgba(0,0,0,0.18)] hover:opacity-100 transition-opacity`}
           style={{
             top: el.top,
             bottom: el.bottom,
@@ -76,8 +76,8 @@ export default function CloudsBackground() {
             right: el.right,
           }}
           animate={{
-            y: [-10, 10, -10],
-            rotate: [-6, 6, -6],
+            y: [-12, 12, -12],
+            rotate: [-8, 8, -8],
           }}
           transition={{
             duration: el.dur,
@@ -94,7 +94,7 @@ export default function CloudsBackground() {
       {sparkles.map((star) => (
         <motion.div
           key={star.id}
-          className={`absolute ${star.size} ${star.color} font-black select-none drop-shadow`}
+          className={`absolute ${star.size} ${star.color} font-black select-none drop-shadow-[0_6px_12px_rgba(0,0,0,0.15)]`}
           style={{
             top: star.top,
             bottom: star.bottom,
@@ -103,7 +103,7 @@ export default function CloudsBackground() {
           }}
           animate={{
             scale: [0.9, 1.25, 0.9],
-            opacity: [0.65, 1, 0.65],
+            opacity: [0.75, 1, 0.75],
             rotate: [0, 15, 0],
           }}
           transition={{
