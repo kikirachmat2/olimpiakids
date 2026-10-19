@@ -18,3 +18,29 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* Custom scrollbar untuk daftar leaderboard di TV Plasma / Desktop */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.6) rgba(224, 242, 254, 0.4);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 7px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(224, 242, 254, 0.4);
+  border-radius: 9999px;
+  margin: 4px 0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.6);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(29, 78, 216, 0.85);
+}
