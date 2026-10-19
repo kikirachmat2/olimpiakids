@@ -88,39 +88,39 @@ export default function LiveLeaderboard() {
   }, [loadLeaderboardData])
 
   return (
-    <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-5 flex flex-col items-center">
-      {/* 1. BRANDING LOGO: ATAS BAWAH (TRANS TV SEBAGAI PENYELENGGARA LEBIH KECIL, OLIMPIAKIDS SEBAGAI ACARA UTAMA LEBIH LEBAR & DOMINAN) */}
+    <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-1 sm:py-2 lg:py-1 flex flex-col items-center justify-between h-full max-h-screen">
+      {/* 1. BRANDING LOGO: ATAS BAWAH (PROPORSI KOMPAK DI LAYAR TV) */}
       <motion.div
-        animate={{ y: [0, -4, 0] }}
+        animate={{ y: [0, -3, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="w-full flex flex-col items-center justify-center gap-1 sm:gap-2 mb-3 sm:mb-4 px-2 select-none"
+        className="w-full flex flex-col items-center justify-center gap-0.5 sm:gap-1.5 mb-1 sm:mb-2 lg:mb-1.5 px-2 select-none shrink-0"
       >
-        {/* LOGO TRANS TV (PENYELENGGARA: LEBAR KANAN-KIRI DIBATASI JAUH LEBIH RAMPING) */}
+        {/* LOGO TRANS TV (PENYELENGGARA) */}
         <div className="relative flex items-center justify-center">
           <Image
             src="/Trans_TV_2013.png"
             alt="Trans TV"
-            width={240}
-            height={40}
+            width={200}
+            height={36}
             priority
-            className="w-24 sm:w-32 md:w-40 lg:w-44 h-auto object-contain drop-shadow-sm opacity-90 hover:opacity-100 transition-opacity"
+            className="w-20 sm:w-28 md:w-32 lg:w-36 xl:w-40 h-auto object-contain drop-shadow-sm opacity-90 hover:opacity-100 transition-opacity"
           />
         </div>
 
-        {/* LOGO OLIMPIAKIDS (ACARA UTAMA: LEBAR DAN TINGGI JAUH LEBIH BESAR DARI TRANS TV DI SEMUA RASIO) */}
-        <div className="relative flex items-center justify-center w-full max-w-[280px] sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl -mt-1 sm:-mt-2">
+        {/* LOGO OLIMPIAKIDS (ACARA UTAMA) */}
+        <div className="relative flex items-center justify-center w-full max-w-[240px] sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl -mt-1">
           {!logoError ? (
             <Image
               src="/olimpiakids.png"
               alt="Olimpiakids"
-              width={650}
-              height={365}
+              width={550}
+              height={300}
               priority
-              className="w-full h-auto max-h-24 sm:max-h-36 md:max-h-48 lg:max-h-56 xl:max-h-64 object-contain drop-shadow-lg"
+              className="w-full h-auto max-h-16 sm:max-h-24 md:max-h-28 lg:max-h-32 xl:max-h-36 object-contain drop-shadow-lg"
               onError={() => setLogoError(true)}
             />
           ) : (
-            <div className="font-display font-black text-4xl sm:text-6xl md:text-7xl text-blue-900 tracking-wider drop-shadow-md">
+            <div className="font-display font-black text-3xl sm:text-5xl md:text-6xl text-blue-900 tracking-wider drop-shadow-md">
               OLIMPIAKIDS
             </div>
           )}
@@ -128,16 +128,16 @@ export default function LiveLeaderboard() {
       </motion.div>
 
       {/* 2. HEADER TITLE PILL: LEBAR LEBIH LUAS DI TV, SELARAS DENGAN CONTAINER TABEL */}
-      <div className="w-full mb-3 sm:mb-4">
+      <div className="w-full mb-1 sm:mb-2 lg:mb-2 shrink-0">
         <motion.div
-          animate={{ scale: [1, 1.008, 1] }}
+          animate={{ scale: [1, 1.005, 1] }}
           transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-2xl sm:rounded-full py-2.5 sm:py-3.5 md:py-4 px-4 sm:px-8 border-[3px] sm:border-[4px] border-white shadow-[0_4px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
+          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
         >
           {/* Subtle Ray Animation */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite]" />
 
-          <h1 className="font-display font-black text-sm sm:text-xl md:text-2xl lg:text-3xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-2 sm:gap-3">
+          <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
             <span>🍼</span>
             <span className="truncate">
               {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
@@ -149,11 +149,11 @@ export default function LiveLeaderboard() {
         </motion.div>
       </div>
 
-      {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - LEBAR DISESUAIKAN UNTUK DISPLAY TV */}
-      <div className="w-full bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl border-[3px] sm:border-[4px] border-white shadow-xl sm:shadow-2xl p-2.5 sm:p-4 md:p-5 overflow-hidden">
+      {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - TAMPILKAN 10 BESAR SECARA PRESISI */}
+      <div className="w-full bg-white/95 backdrop-blur-md rounded-xl sm:rounded-3xl border-[2.5px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-1.5 sm:p-2.5 md:p-3 lg:p-3.5 overflow-hidden flex flex-col flex-1 min-h-0">
         {/* HEADER ROW TABEL (10% 20% 48% 22%) */}
         <div
-          className="grid items-center bg-gradient-to-b from-blue-500 to-blue-600 text-white font-display font-black text-[11px] sm:text-sm md:text-base lg:text-lg uppercase tracking-wide rounded-xl sm:rounded-2xl min-h-[40px] sm:min-h-[48px] md:min-h-[52px] px-3 sm:px-6 py-2 sm:py-2.5 mb-2 sm:mb-3 shadow-sm select-none"
+          className="grid items-center bg-gradient-to-b from-blue-500 to-blue-600 text-white font-display font-black text-[10px] sm:text-xs md:text-sm lg:text-base uppercase tracking-wide rounded-lg sm:rounded-xl min-h-[30px] sm:min-h-[36px] md:min-h-[40px] px-2 sm:px-4 md:px-5 py-1 sm:py-1.5 mb-1 sm:mb-1.5 shadow-sm select-none shrink-0"
           style={{
             gridTemplateColumns: '10% 20% 48% 22%',
           }}

@@ -97,26 +97,26 @@ export default function RankRow({
         mass: 0.8,
         delay: index * 0.06,
       }}
-      className={`grid items-center rounded-xl sm:rounded-2xl min-h-[48px] sm:min-h-[58px] md:min-h-[64px] mb-2 sm:mb-2.5 px-3 sm:px-6 py-2 sm:py-2.5 select-none transition-all ${rowStyle}`}
+      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[48px] xl:min-h-[52px] mb-1 sm:mb-1.5 md:mb-1.5 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 select-none transition-all ${rowStyle}`}
       style={{
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
     >
       {/* Kolom 1 (10%): NO DENGAN MEDALI SPESIAL */}
-      <div className="text-center font-display font-black text-base sm:text-2xl md:text-3xl flex items-center justify-center">
+      <div className="text-center font-display font-black text-sm sm:text-xl md:text-2xl lg:text-2xl flex items-center justify-center">
         {badgeIcon}
         <span>{rank}</span>
       </div>
 
       {/* Kolom 2 (20%): NOMOR DADA */}
-      <div className="text-center font-mono font-bold text-xs sm:text-base md:text-xl tracking-wide">
+      <div className="text-center font-mono font-bold text-xs sm:text-sm md:text-base lg:text-lg tracking-wide">
         {bib_number}
       </div>
 
       {/* Kolom 3 (48%): NAMA ANAK */}
-      <div className="font-sans font-extrabold text-xs sm:text-lg md:text-xl lg:text-2xl truncate pl-2 sm:pl-4 pr-1 flex items-center gap-1.5">
+      <div className="font-sans font-extrabold text-xs sm:text-base md:text-lg lg:text-xl truncate pl-2 sm:pl-3 pr-1 flex items-center gap-1.5">
         <span className="truncate">{participant_name}</span>
-        {isFirst && <span className="text-xs sm:text-sm md:text-base">👑</span>}
+        {isFirst && <span className="text-xs sm:text-sm">👑</span>}
       </div>
 
       {/* Kolom 4 (22%): TIMER DENGAN WARNA SPESIAL */}
@@ -124,7 +124,7 @@ export default function RankRow({
         <motion.div
           animate={isFirst ? { scale: [1, 1.03, 1] } : {}}
           transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-          className={`w-[95%] sm:w-[88%] max-w-[145px] md:max-w-[160px] py-1.5 sm:py-2 rounded-full text-center font-mono font-black text-xs sm:text-base md:text-lg lg:text-xl tracking-tight ${timerStyle}`}
+          className={`w-[95%] sm:w-[88%] max-w-[130px] md:max-w-[145px] py-1 sm:py-1.5 rounded-full text-center font-mono font-black text-[11px] sm:text-sm md:text-base lg:text-lg tracking-tight ${timerStyle}`}
         >
           {formatTimerMMSSCC(duration_ms)}
         </motion.div>
