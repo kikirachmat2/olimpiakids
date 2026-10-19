@@ -164,8 +164,8 @@ export default function LiveLeaderboard() {
           <div className="text-center">TIMER</div>
         </div>
 
-        {/* LIST BARIS PESERTA */}
-        <div className="w-full">
+        {/* LIST BARIS PESERTA (TOP 10 UNTUK TAMPILAN TV PLASMA) */}
+        <div className="w-full flex-1 flex flex-col justify-start">
           <AnimatePresence>
             {isLoading && leaderboard.length === 0 ? (
               <div className="py-12 sm:py-14 text-center text-slate-500 font-sans font-bold text-sm flex flex-col items-center justify-center gap-2.5">
@@ -177,7 +177,7 @@ export default function LiveLeaderboard() {
                 Belum ada data hasil lomba untuk babak ini.
               </div>
             ) : (
-              leaderboard.map((item, index) => (
+              leaderboard.slice(0, 10).map((item, index) => (
                 <RankRow
                   key={item.participant_id || index}
                   rank={item.rank || index + 1}
