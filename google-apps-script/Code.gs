@@ -25,7 +25,7 @@ var CONFIG = {
   SUPABASE_URL: 'https://bldyeozjctblmfxajfty.supabase.co',
   SUPABASE_KEY: 'sb_publishable_dmf0Fovjp827P-pmMRmdEg_Vg0jfBXY',
   TAB_NAMES: ['LIVE VISUAL', 'DATA KLASEMEN FIX'],
-  EVENT_ID: 1,
+  EVENT_ID: 2,
   EVENT_NAME: 'LEADERBOARD BABY CRAWLING',
   // Cadangan jika header tidak ditemukan (1-based): header di baris 2, kolom B/C/D
   FALLBACK: { HEADER_ROW: 2, COL_BIB: 2, COL_NAME: 3, COL_TIMER: 4 },
