@@ -32,7 +32,22 @@ export default function LiveLeaderboard() {
         if (boardRes.error) {
           setFetchError(boardRes.error)
         } else {
-          setLeaderboard(boardRes.data || [])
+          setLeaderboard((prev) => {
+            const next = boardRes.data || []
+            if (
+              prev.length === next.length &&
+              prev.every(
+                (item, idx) =>
+                  item.bib_number === next[idx].bib_number &&
+                  item.duration_ms === next[idx].duration_ms &&
+                  item.participant_name === next[idx].participant_name &&
+                  item.rank === next[idx].rank
+              )
+            ) {
+              return prev
+            }
+            return next
+          })
         }
       } else {
         setActiveRace(null)
@@ -179,7 +194,7 @@ export default function LiveLeaderboard() {
             ) : (
               leaderboard.map((item, index) => (
                 <RankRow
-                  key={item.participant_id || index}
+                  key={item.bib_number || item.participant_id || index}
                   rank={item.rank || index + 1}
                   bib_number={item.bib_number}
                   participant_name={item.participant_name}

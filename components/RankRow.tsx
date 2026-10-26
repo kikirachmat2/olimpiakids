@@ -85,19 +85,28 @@ export default function RankRow({
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 24, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
-      whileHover={{ scale: 1.015, y: -1, transition: { duration: 0.15 } }}
-      transition={{
-        type: 'spring',
-        stiffness: 280,
-        damping: 22,
-        mass: 0.8,
-        delay: index * 0.06,
+      layout="position"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        transition: {
+          delay: Math.min(index * 0.03, 0.3),
+          duration: 0.3,
+          ease: 'easeOut',
+        },
       }}
-      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none transition-all ${rowStyle}`}
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+      whileHover={{ scale: 1.012, transition: { duration: 0.15 } }}
+      transition={{
+        layout: {
+          type: 'spring',
+          stiffness: 220,
+          damping: 24,
+          mass: 0.7,
+        },
+      }}
+      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none transition-[background,border-color,box-shadow,color] duration-500 ease-out will-change-transform ${rowStyle}`}
       style={{
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
@@ -105,7 +114,14 @@ export default function RankRow({
       {/* Kolom 1 (10%): NO DENGAN MEDALI SPESIAL */}
       <div className="text-center font-display font-black text-sm sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl flex items-center justify-center">
         {badgeIcon}
-        <span>{rank}</span>
+        <motion.span
+          key={rank}
+          initial={{ scale: 1.3, opacity: 0.5 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+        >
+          {rank}
+        </motion.span>
       </div>
 
       {/* Kolom 2 (20%): NOMOR DADA */}
