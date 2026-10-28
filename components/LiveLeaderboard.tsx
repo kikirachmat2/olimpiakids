@@ -42,6 +42,16 @@ export default function LiveLeaderboard() {
   // Fungsi Test Selebrasi manual untuk Operator Panggung (Tekan tombol 'C')
   const triggerTestCelebration = useCallback((forcedType?: 'top3' | 'champion') => {
     const type = forcedType || (Math.random() > 0.5 ? 'champion' : 'top3')
+
+    // Aktifkan juga selebrasi pada baris teratas saat test
+    if (leaderboard.length > 0) {
+      const topBib = leaderboard[0].bib_number
+      setCelebrations({ [topBib]: type })
+      setTimeout(() => {
+        setCelebrations({})
+      }, 4000)
+    }
+
     if (type === 'champion') {
       fireChampionConfetti()
       playCelebrationSound('champion', isMutedRef.current)
@@ -64,7 +74,7 @@ export default function LiveLeaderboard() {
     toastTimerRef.current = setTimeout(() => {
       setActiveToast(null)
     }, 4500)
-  }, [])
+  }, [leaderboard])
 
   // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik + Selebrasi
   const applyLeaderboardUpdate = useCallback((nextData: LeaderboardItem[]) => {
@@ -372,6 +382,7 @@ export default function LiveLeaderboard() {
       <AnimatePresence>
         {activeToast && (
           <motion.div
+            key={activeToast.title}
             initial={{ opacity: 0, y: -16, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.96 }}
