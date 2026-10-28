@@ -57,7 +57,7 @@ export default function LiveLeaderboard() {
       playCelebrationSound('champion', isMutedRef.current)
       setActiveToast({
         type: 'champion',
-        title: '👑 TEST JUARA 1 BARU!',
+        title: 'TEST JUARA 1 BARU!',
         subtitle: 'Uji coba visual confetti & efek panggung juara 1',
       })
     } else {
@@ -65,7 +65,7 @@ export default function LiveLeaderboard() {
       playCelebrationSound('top3', isMutedRef.current)
       setActiveToast({
         type: 'top3',
-        title: '🎉 TEST MASUK 3 BESAR!',
+        title: 'TEST MASUK 3 BESAR!',
         subtitle: 'Uji coba visual confetti & efek panggung 3 besar',
       })
     }
@@ -73,7 +73,7 @@ export default function LiveLeaderboard() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => {
       setActiveToast(null)
-    }, 12000)
+    }, 6000)
   }, [leaderboard])
 
   // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik + Selebrasi
@@ -170,15 +170,15 @@ export default function LiveLeaderboard() {
             playCelebrationSound('champion', isMutedRef.current)
             setActiveToast({
               type: 'champion',
-              title: '👑 JUARA 1 BARU!',
-              subtitle: `${cel.name} merebut posisi 1 dengan waktu ${cel.timeStr}`,
+              title: 'JUARA 1 BARU!',
+              subtitle: `${cel.name} merebut posisi 1 (${cel.timeStr})`,
             })
           } else {
             fireTop3Confetti()
             playCelebrationSound('top3', isMutedRef.current)
             setActiveToast({
               type: 'top3',
-              title: `🎉 MASUK PERINGKAT ${cel.rank}!`,
+              title: `MASUK PERINGKAT ${cel.rank}!`,
               subtitle: `${cel.name} menembus 3 besar (${cel.timeStr})`,
             })
           }
@@ -381,7 +381,9 @@ export default function LiveLeaderboard() {
                   {activeToast.type === 'champion' ? '👑' : '🎉'}
                 </span>
                 <span className="truncate">
-                  {activeToast.title} • {activeToast.subtitle}
+                  <span className="font-black tracking-wider">{activeToast.title}</span>
+                  <span className="mx-2 opacity-60">•</span>
+                  <span className="font-bold opacity-90">{activeToast.subtitle}</span>
                 </span>
                 <span className="text-base sm:text-2xl animate-bounce">
                   {activeToast.type === 'champion' ? '👑' : '⭐'}

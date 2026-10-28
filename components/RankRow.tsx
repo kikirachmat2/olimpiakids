@@ -189,7 +189,7 @@ export default function RankRow({
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: [1, 1.12, 1], opacity: 1 }}
             transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
-            className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 font-display font-black text-[9px] sm:text-xs md:text-sm px-2 sm:px-2.5 py-0.5 rounded-full shadow-md uppercase tracking-wide shrink-0 border border-amber-300"
+            className="bg-gradient-to-r from-red-600 via-amber-600 to-yellow-500 text-white font-display font-black text-[9px] sm:text-xs md:text-sm px-2.5 sm:px-3 py-0.5 rounded-full shadow-lg uppercase tracking-wider shrink-0 border border-yellow-200 ring-2 ring-yellow-400/80 drop-shadow-sm"
           >
             👑 JUARA 1 BARU!
           </motion.span>
