@@ -4,6 +4,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 
 export type RowMovement = 'up' | 'down' | 'idle'
+export type RowCelebration = 'none' | 'top3' | 'champion'
 
 interface RankRowProps {
   rank: number
@@ -12,6 +13,7 @@ interface RankRowProps {
   duration_ms: number | null
   index: number
   movement?: RowMovement
+  celebration?: RowCelebration
 }
 
 // Format timer MM.SS.CC (menit.detik.centidetik) contoh: 15000ms -> "00.15.00"
@@ -32,6 +34,7 @@ export default function RankRow({
   duration_ms,
   index,
   movement = 'idle',
+  celebration = 'none',
 }: RankRowProps) {
   const isFirst = rank === 1
   const isSecond = rank === 2
@@ -89,6 +92,43 @@ export default function RankRow({
 
   const isMovingUp = movement === 'up'
   const isMovingDown = movement === 'down'
+  const isChampionCelebration = celebration === 'champion'
+  const isTop3Celebration = celebration === 'top3'
+  const isCelebrating = isChampionCelebration || isTop3Celebration
+
+  const targetScale = isChampionCelebration
+    ? 1.075
+    : isTop3Celebration
+    ? 1.055
+    : isMovingUp
+    ? 1.035
+    : isMovingDown
+    ? 0.985
+    : 1
+
+  const targetZIndex = isChampionCelebration
+    ? 55
+    : isTop3Celebration
+    ? 50
+    : isMovingUp
+    ? 45
+    : isMovingDown
+    ? 10
+    : 20
+
+  let celebrationClasses = ''
+  if (isChampionCelebration) {
+    celebrationClasses =
+      'ring-4 sm:ring-[5px] ring-yellow-300 shadow-[0_20px_50px_rgba(234,179,8,0.7)]'
+  } else if (isTop3Celebration) {
+    celebrationClasses =
+      'ring-4 ring-amber-400 shadow-[0_16px_40px_rgba(245,158,11,0.55)]'
+  } else if (isMovingUp) {
+    celebrationClasses =
+      'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_12px_28px_rgba(245,158,11,0.45)]'
+  } else if (isMovingDown) {
+    celebrationClasses = 'opacity-95 shadow-sm'
+  }
 
   return (
     <motion.div
@@ -97,8 +137,8 @@ export default function RankRow({
       animate={{
         opacity: 1,
         y: 0,
-        scale: isMovingUp ? 1.035 : isMovingDown ? 0.985 : 1,
-        zIndex: isMovingUp ? 45 : isMovingDown ? 10 : 20,
+        scale: targetScale,
+        zIndex: targetZIndex,
       }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
       whileHover={{ scale: 1.012, transition: { duration: 0.15 } }}
@@ -108,18 +148,12 @@ export default function RankRow({
           ease: [0.16, 1, 0.3, 1], // Broadcast ultra-smooth glide curve
         },
         scale: {
-          duration: isMovingUp ? 0.4 : 0.6,
+          duration: isCelebrating ? 0.35 : isMovingUp ? 0.4 : 0.6,
           ease: 'easeOut',
         },
         opacity: { duration: 0.3 },
       }}
-      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none relative transition-[background,border-color,box-shadow,color] duration-500 ease-out will-change-transform ${rowStyle} ${
-        isMovingUp
-          ? 'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_12px_28px_rgba(245,158,11,0.45)]'
-          : isMovingDown
-          ? 'opacity-95 shadow-sm'
-          : ''
-      }`}
+      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none relative transition-[background,border-color,box-shadow,color] duration-500 ease-out will-change-transform ${rowStyle} ${celebrationClasses}`}
       style={{
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
@@ -149,7 +183,27 @@ export default function RankRow({
       {/* Kolom 3 (48%): NAMA ANAK */}
       <div className="font-sans font-extrabold text-xs sm:text-base md:text-lg lg:text-xl xl:text-2xl truncate pl-2 sm:pl-3 pr-1 flex items-center gap-1.5">
         <span className="truncate">{participant_name}</span>
-        {isFirst && <span className="text-xs sm:text-base">👑</span>}
+        {isFirst && !isCelebrating && <span className="text-xs sm:text-base">👑</span>}
+        {isChampionCelebration && (
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: [1, 1.12, 1], opacity: 1 }}
+            transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+            className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 font-display font-black text-[9px] sm:text-xs md:text-sm px-2 sm:px-2.5 py-0.5 rounded-full shadow-md uppercase tracking-wide shrink-0 border border-amber-300"
+          >
+            👑 JUARA 1 BARU!
+          </motion.span>
+        )}
+        {isTop3Celebration && (
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: [1, 1.08, 1], opacity: 1 }}
+            transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-display font-black text-[9px] sm:text-xs md:text-sm px-2 sm:px-2.5 py-0.5 rounded-full shadow-md uppercase tracking-wide shrink-0 border border-blue-300"
+          >
+            🎉 MASUK 3 BESAR!
+          </motion.span>
+        )}
       </div>
 
       {/* Kolom 4 (22%): TIMER DENGAN WARNA SPESIAL */}

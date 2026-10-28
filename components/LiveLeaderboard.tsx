@@ -6,12 +6,27 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { LeaderboardItem, RaceEvent } from '@/types/database'
 import { getActiveRace, getLeaderboard } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
-import RankRow, { RowMovement } from './RankRow'
+import RankRow, { RowMovement, RowCelebration, formatTimerMMSSCC } from './RankRow'
+import { fireTop3Confetti, fireChampionConfetti, playCelebrationSound } from '@/lib/celebration'
+
+interface CelebrationTriggerData {
+  type: 'champion' | 'top3'
+  name: string
+  rank: number
+  timeStr: string
+}
 
 export default function LiveLeaderboard() {
   const [activeRace, setActiveRace] = useState<RaceEvent | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [movements, setMovements] = useState<Record<string, RowMovement>>({})
+  const [celebrations, setCelebrations] = useState<Record<string, RowCelebration>>({})
+  const [activeToast, setActiveToast] = useState<{
+    type: 'top3' | 'champion'
+    title: string
+    subtitle: string
+  } | null>(null)
+  const [isMuted, setIsMuted] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [logoError, setLogoError] = useState(false)
@@ -20,8 +35,38 @@ export default function LiveLeaderboard() {
   const isAnimatingRef = React.useRef(false)
   const pendingDataRef = React.useRef<LeaderboardItem[] | null>(null)
   const animationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
+  const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null)
+  const isMutedRef = React.useRef(isMuted)
+  isMutedRef.current = isMuted
 
-  // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik
+  // Fungsi Test Selebrasi manual untuk Operator Panggung (Tekan tombol 'C')
+  const triggerTestCelebration = useCallback((forcedType?: 'top3' | 'champion') => {
+    const type = forcedType || (Math.random() > 0.5 ? 'champion' : 'top3')
+    if (type === 'champion') {
+      fireChampionConfetti()
+      playCelebrationSound('champion', isMutedRef.current)
+      setActiveToast({
+        type: 'champion',
+        title: '👑 TEST JUARA 1 BARU!',
+        subtitle: 'Uji coba visual confetti & efek panggung juara 1',
+      })
+    } else {
+      fireTop3Confetti()
+      playCelebrationSound('top3', isMutedRef.current)
+      setActiveToast({
+        type: 'top3',
+        title: '🎉 TEST MASUK 3 BESAR!',
+        subtitle: 'Uji coba visual confetti & efek panggung 3 besar',
+      })
+    }
+
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => {
+      setActiveToast(null)
+    }, 4500)
+  }, [])
+
+  // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik + Selebrasi
   const applyLeaderboardUpdate = useCallback((nextData: LeaderboardItem[]) => {
     // Jika sedang dalam proses animasi pergerakan, tahan data baru agar transisi tidak patah/terpotong
     if (isAnimatingRef.current) {
@@ -31,20 +76,24 @@ export default function LiveLeaderboard() {
 
     const prevRanks = previousRanksRef.current
     const newMovements: Record<string, RowMovement> = {}
+    const newCelebrations: Record<string, RowCelebration> = {}
     let hasRankChanges = false
+    let celebrationToTrigger: CelebrationTriggerData | null = null
 
     // Initial load: simpan posisi awal tanpa memicu animasi perpindahan
     if (prevRanks.size === 0) {
-      nextData.forEach((item, idx) => {
+      for (let idx = 0; idx < nextData.length; idx++) {
+        const item = nextData[idx]
         const rank = item.rank || idx + 1
         prevRanks.set(item.bib_number, rank)
-      })
+      }
       setLeaderboard(nextData)
       return
     }
 
-    // Deteksi naik / turun untuk setiap nomor dada
-    nextData.forEach((item, idx) => {
+    // Deteksi naik / turun & tembus 3 besar untuk setiap nomor dada
+    for (let idx = 0; idx < nextData.length; idx++) {
+      const item = nextData[idx]
       const newRank = item.rank || idx + 1
       const oldRank = prevRanks.get(item.bib_number)
 
@@ -53,32 +102,89 @@ export default function LiveLeaderboard() {
         if (newRank < oldRank) {
           // Naik ke peringkat lebih tinggi (misal: 8 -> 1)
           newMovements[item.bib_number] = 'up'
+
+          // Cek apakah menembus 3 besar (Podium)
+          if (newRank === 1) {
+            newCelebrations[item.bib_number] = 'champion'
+            celebrationToTrigger = {
+              type: 'champion',
+              name: item.participant_name,
+              rank: 1,
+              timeStr: formatTimerMMSSCC(item.duration_ms),
+            }
+          } else if (newRank <= 3) {
+            newCelebrations[item.bib_number] = 'top3'
+            if (!celebrationToTrigger) {
+              celebrationToTrigger = {
+                type: 'top3',
+                name: item.participant_name,
+                rank: newRank,
+                timeStr: formatTimerMMSSCC(item.duration_ms),
+              }
+            }
+          } else {
+            newCelebrations[item.bib_number] = 'none'
+          }
         } else {
           // Turun peringkat (misal: 1 -> 2)
           newMovements[item.bib_number] = 'down'
+          newCelebrations[item.bib_number] = 'none'
         }
       } else {
         newMovements[item.bib_number] = 'idle'
+        newCelebrations[item.bib_number] = 'none'
       }
-    })
+    }
 
     // Perbarui map peringkat sekarang
     const newRanksMap = new Map<string, number>()
-    nextData.forEach((item, idx) => {
+    for (let idx = 0; idx < nextData.length; idx++) {
+      const item = nextData[idx]
       newRanksMap.set(item.bib_number, item.rank || idx + 1)
-    })
+    }
     previousRanksRef.current = newRanksMap
 
     if (hasRankChanges) {
       // Kunci proses animasi selama 2.6 detik (2.4 detik animasi layout + buffer 200ms)
       isAnimatingRef.current = true
       setMovements(newMovements)
+      setCelebrations(newCelebrations)
       setLeaderboard(nextData)
+
+      // Jalankan Confetti, Sound Effect, & Toast MC jika ada selebrasi masuk 3 besar
+      if (celebrationToTrigger) {
+        const cel: CelebrationTriggerData = celebrationToTrigger
+        setTimeout(() => {
+          if (cel.type === 'champion') {
+            fireChampionConfetti()
+            playCelebrationSound('champion', isMutedRef.current)
+            setActiveToast({
+              type: 'champion',
+              title: '👑 JUARA 1 BARU!',
+              subtitle: `${cel.name} merebut posisi 1 dengan waktu ${cel.timeStr}`,
+            })
+          } else {
+            fireTop3Confetti()
+            playCelebrationSound('top3', isMutedRef.current)
+            setActiveToast({
+              type: 'top3',
+              title: `🎉 MASUK PERINGKAT ${cel.rank}!`,
+              subtitle: `${cel.name} menembus 3 besar (${cel.timeStr})`,
+            })
+          }
+
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+          toastTimerRef.current = setTimeout(() => {
+            setActiveToast(null)
+          }, 4500)
+        }, 350)
+      }
 
       if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
       animationTimerRef.current = setTimeout(() => {
         isAnimatingRef.current = false
         setMovements({}) // Kembalikan scale & z-index ke posisi normal secara halus
+        setCelebrations({})
 
         // Jika ada data baru yang masuk selama animasi, proses segera
         if (pendingDataRef.current) {
@@ -173,12 +279,32 @@ export default function LiveLeaderboard() {
       loadLeaderboardData()
     }, 2000)
 
+    // Keyboard Hotkeys untuk Operator Panggung:
+    // [C] = Test Selebrasi Confetti (gladi resik)
+    // [M] = Toggle Mute Audio
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName.toLowerCase()
+      if (activeTag === 'input' || activeTag === 'textarea') return
+
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault()
+        triggerTestCelebration()
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault()
+        setIsMuted((prev) => !prev)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
     return () => {
+      window.removeEventListener('keydown', handleKeyDown)
       supabase.removeChannel(channel)
       clearInterval(interval)
       if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     }
-  }, [loadLeaderboardData])
+  }, [loadLeaderboardData, triggerTestCelebration])
 
   return (
     <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-1 sm:py-2 lg:py-1 flex flex-col items-center justify-between h-full max-h-screen">
@@ -221,7 +347,7 @@ export default function LiveLeaderboard() {
       </motion.div>
 
       {/* 2. HEADER TITLE PILL: LEBAR LEBIH LUAS DI TV, SELARAS DENGAN CONTAINER TABEL */}
-      <div className="w-full mb-1 sm:mb-2 lg:mb-2 shrink-0">
+      <div className="w-full mb-1 sm:mb-1.5 shrink-0">
         <motion.div
           animate={{ scale: [1, 1.005, 1] }}
           transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
@@ -241,6 +367,40 @@ export default function LiveLeaderboard() {
           </h1>
         </motion.div>
       </div>
+
+      {/* 2.5 SELEBRASI BANNER TOAST (BROADCAST ALERT SAAT TEMBUS TOP 3 / JUARA 1) */}
+      <AnimatePresence>
+        {activeToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.96 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className={`w-full max-w-2xl mx-auto mb-1.5 py-1.5 sm:py-2 px-3 sm:px-6 rounded-xl sm:rounded-2xl border-2 sm:border-3 shadow-2xl flex items-center justify-between gap-2.5 text-center shrink-0 z-40 ${
+              activeToast.type === 'champion'
+                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 border-white shadow-[0_10px_30px_rgba(234,179,8,0.55)]'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white border-white shadow-[0_10px_30px_rgba(37,99,235,0.55)]'
+            }`}
+          >
+            <div className="w-full flex items-center justify-center gap-2 sm:gap-3">
+              <span className="text-lg sm:text-2xl animate-bounce">
+                {activeToast.type === 'champion' ? '👑' : '🎉'}
+              </span>
+              <div className="flex flex-col items-center">
+                <span className="font-display font-black text-xs sm:text-sm md:text-base tracking-wide uppercase drop-shadow-sm leading-tight">
+                  {activeToast.title}
+                </span>
+                <span className="font-sans font-extrabold text-[10px] sm:text-xs md:text-sm opacity-95 leading-tight">
+                  {activeToast.subtitle}
+                </span>
+              </div>
+              <span className="text-lg sm:text-2xl animate-bounce">
+                {activeToast.type === 'champion' ? '👑' : '⭐'}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - TAMPILKAN 10 BESAR SECARA PRESISI */}
       <div className="w-full bg-white/95 backdrop-blur-md rounded-xl sm:rounded-3xl border-[2.5px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-1.5 sm:p-2.5 md:p-3 lg:p-3.5 overflow-hidden flex flex-col flex-1 min-h-0">
@@ -279,11 +439,35 @@ export default function LiveLeaderboard() {
                   duration_ms={item.duration_ms}
                   index={index}
                   movement={movements[item.bib_number] || 'idle'}
+                  celebration={celebrations[item.bib_number] || 'none'}
                 />
               ))
             )}
           </AnimatePresence>
         </div>
+      </div>
+
+      {/* 4. STAGE OPERATOR SHORTCUT CONTROL PILL (Bottom Right) */}
+      <div className="fixed bottom-2 right-2 z-50 flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity select-none text-[10px] sm:text-xs font-mono font-bold bg-slate-900/85 backdrop-blur text-white px-2.5 py-1 rounded-full shadow-lg border border-white/20">
+        <button
+          onClick={() => setIsMuted((prev) => !prev)}
+          title="Klik atau tekan 'M' untuk Mute/Unmute Audio Selebrasi"
+          className="flex items-center gap-1 hover:text-yellow-300 transition-colors"
+        >
+          <span>{isMuted ? '🔇' : '🔊'}</span>
+          <span className="hidden sm:inline">[M] {isMuted ? 'Muted' : 'Sound ON'}</span>
+        </button>
+        <span className="text-slate-500">|</span>
+        <button
+          onClick={() => triggerTestCelebration()}
+          title="Klik atau tekan 'C' untuk Test Confetti Panggung"
+          className="flex items-center gap-1 hover:text-yellow-300 transition-colors"
+        >
+          <span>🎊</span>
+          <span className="hidden sm:inline">[C] Test Confetti</span>
+        </button>
+        <span className="text-slate-500">|</span>
+        <span className="hidden sm:inline text-slate-300">[F] Fullscreen</span>
       </div>
     </div>
   )

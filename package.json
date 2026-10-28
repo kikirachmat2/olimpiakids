@@ -12,6 +12,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "@types/pg": "^8.23.1",
+    "canvas-confetti": "^1.9.4",
     "framer-motion": "^14.2.0",
     "lucide-react": "^1.57.0",
     "next": "16.4.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
