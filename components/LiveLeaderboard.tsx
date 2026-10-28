@@ -36,6 +36,7 @@ export default function LiveLeaderboard() {
   const pendingDataRef = React.useRef<LeaderboardItem[] | null>(null)
   const animationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null)
+  const celebrationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const isMutedRef = React.useRef(isMuted)
   isMutedRef.current = isMuted
 
@@ -47,9 +48,10 @@ export default function LiveLeaderboard() {
     if (leaderboard.length > 0) {
       const topBib = leaderboard[0].bib_number
       setCelebrations({ [topBib]: type })
-      setTimeout(() => {
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
+      celebrationTimerRef.current = setTimeout(() => {
         setCelebrations({})
-      }, 4000)
+      }, 5000)
     }
 
     if (type === 'champion') {
