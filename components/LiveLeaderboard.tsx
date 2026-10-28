@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { LeaderboardItem, RaceEvent } from '@/types/database'
 import { getActiveRace, getLeaderboard } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
-import RankRow, { RowMovement, RowCelebration, formatTimerMMSSCC } from './RankRow'
+import RankRow, { RowCelebration, formatTimerMMSSCC } from './RankRow'
 import { fireTop3Confetti, fireChampionConfetti, playCelebrationSound } from '@/lib/celebration'
 
 interface CelebrationTriggerData {
@@ -19,7 +19,6 @@ interface CelebrationTriggerData {
 export default function LiveLeaderboard() {
   const [activeRace, setActiveRace] = useState<RaceEvent | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
-  const [movements, setMovements] = useState<Record<string, RowMovement>>({})
   const [celebrations, setCelebrations] = useState<Record<string, RowCelebration>>({})
   const [activeToast, setActiveToast] = useState<{
     type: 'top3' | 'champion'
@@ -31,30 +30,32 @@ export default function LiveLeaderboard() {
   const [logoError, setLogoError] = useState(false)
 
   const previousRanksRef = React.useRef<Map<string, number>>(new Map())
-  const isAnimatingRef = React.useRef(false)
-  const pendingDataRef = React.useRef<LeaderboardItem[] | null>(null)
-  const animationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const celebrationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const isMutedRef = React.useRef(isMuted)
-  const applyLeaderboardUpdateRef = React.useRef<((data: LeaderboardItem[]) => void) | null>(null)
+  const leaderboardRef = React.useRef(leaderboard)
 
   useEffect(() => {
     isMutedRef.current = isMuted
   }, [isMuted])
 
+  useEffect(() => {
+    leaderboardRef.current = leaderboard
+  }, [leaderboard])
+
   // Fungsi Test Selebrasi manual untuk Operator Panggung (Tekan tombol 'C')
   const triggerTestCelebration = useCallback((forcedType?: 'top3' | 'champion') => {
     const type = forcedType || (Math.random() > 0.5 ? 'champion' : 'top3')
+    const currentBoard = leaderboardRef.current
 
     // Aktifkan juga selebrasi pada baris teratas saat test
-    if (leaderboard.length > 0) {
-      const topBib = leaderboard[0].bib_number
+    if (currentBoard.length > 0) {
+      const topBib = currentBoard[0].bib_number
       setCelebrations({ [topBib]: type })
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
       celebrationTimerRef.current = setTimeout(() => {
         setCelebrations({})
-      }, 5000)
+      }, 4000)
     }
 
     if (type === 'champion') {
@@ -78,24 +79,16 @@ export default function LiveLeaderboard() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => {
       setActiveToast(null)
-    }, 6000)
-  }, [leaderboard])
+    }, 4500)
+  }, [])
 
-  // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik + Selebrasi
+  // Proses update peringkat secara instan dan picu selebrasi jika ada yang masuk 3 besar / Juara 1
   const applyLeaderboardUpdate = useCallback((nextData: LeaderboardItem[]) => {
-    // Jika sedang dalam proses animasi pergerakan, tahan data baru agar transisi tidak patah/terpotong
-    if (isAnimatingRef.current) {
-      pendingDataRef.current = nextData
-      return
-    }
-
     const prevRanks = previousRanksRef.current
-    const newMovements: Record<string, RowMovement> = {}
     const newCelebrations: Record<string, RowCelebration> = {}
-    let hasRankChanges = false
     let celebrationToTrigger: CelebrationTriggerData | null = null
 
-    // Initial load: simpan posisi awal tanpa memicu animasi perpindahan
+    // Initial load: simpan posisi awal
     if (prevRanks.size === 0) {
       for (let idx = 0; idx < nextData.length; idx++) {
         const item = nextData[idx]
@@ -106,48 +99,30 @@ export default function LiveLeaderboard() {
       return
     }
 
-    // Deteksi naik / turun & tembus 3 besar untuk setiap nomor dada
+    // Deteksi naik ke 3 besar / juara 1
     for (let idx = 0; idx < nextData.length; idx++) {
       const item = nextData[idx]
       const newRank = item.rank || idx + 1
       const oldRank = prevRanks.get(item.bib_number)
 
-      if (oldRank !== undefined && oldRank !== newRank) {
-        hasRankChanges = true
-        if (newRank < oldRank) {
-          // Naik ke peringkat lebih tinggi (misal: 8 -> 1)
-          newMovements[item.bib_number] = 'up'
-
-          // Cek apakah menembus 3 besar (Podium)
-          if (newRank === 1) {
-            newCelebrations[item.bib_number] = 'champion'
-            celebrationToTrigger = {
-              type: 'champion',
-              name: item.participant_name,
-              rank: 1,
-              timeStr: formatTimerMMSSCC(item.duration_ms),
-            }
-          } else if (newRank <= 3) {
-            newCelebrations[item.bib_number] = 'top3'
-            if (!celebrationToTrigger) {
-              celebrationToTrigger = {
-                type: 'top3',
-                name: item.participant_name,
-                rank: newRank,
-                timeStr: formatTimerMMSSCC(item.duration_ms),
-              }
-            }
-          } else {
-            newCelebrations[item.bib_number] = 'none'
+      if (oldRank !== undefined && oldRank !== newRank && newRank < oldRank) {
+        if (newRank === 1) {
+          newCelebrations[item.bib_number] = 'champion'
+          celebrationToTrigger = {
+            type: 'champion',
+            name: item.participant_name,
+            rank: 1,
+            timeStr: formatTimerMMSSCC(item.duration_ms),
           }
-        } else {
-          // Turun peringkat (misal: 1 -> 2)
-          newMovements[item.bib_number] = 'down'
-          newCelebrations[item.bib_number] = 'none'
+        } else if (newRank <= 3 && !celebrationToTrigger) {
+          newCelebrations[item.bib_number] = 'top3'
+          celebrationToTrigger = {
+            type: 'top3',
+            name: item.participant_name,
+            rank: newRank,
+            timeStr: formatTimerMMSSCC(item.duration_ms),
+          }
         }
-      } else {
-        newMovements[item.bib_number] = 'idle'
-        newCelebrations[item.bib_number] = 'none'
       }
     }
 
@@ -159,78 +134,44 @@ export default function LiveLeaderboard() {
     }
     previousRanksRef.current = newRanksMap
 
-    if (hasRankChanges) {
-      // Kunci proses animasi selama 2.6 detik (2.4 detik animasi layout + buffer 200ms)
-      isAnimatingRef.current = true
-      setMovements(newMovements)
+    // Update state leaderboard langsung (Framer Motion layout="position" menangani animasi perpindahan secara otomatis)
+    setLeaderboard(nextData)
+
+    if (celebrationToTrigger) {
+      const cel: CelebrationTriggerData = celebrationToTrigger
       setCelebrations(newCelebrations)
-      setLeaderboard(nextData)
 
-      // Jalankan Confetti, Sound Effect, & Toast MC jika ada selebrasi masuk 3 besar
-      if (celebrationToTrigger) {
-        const cel: CelebrationTriggerData = celebrationToTrigger
-        setTimeout(() => {
-          if (cel.type === 'champion') {
-            fireChampionConfetti()
-            playCelebrationSound('champion', isMutedRef.current)
-            setActiveToast({
-              type: 'champion',
-              title: 'JUARA 1 BARU!',
-              subtitle: `${cel.name} merebut posisi 1 (${cel.timeStr})`,
-            })
-          } else {
-            fireTop3Confetti()
-            playCelebrationSound('top3', isMutedRef.current)
-            setActiveToast({
-              type: 'top3',
-              title: `MASUK PERINGKAT ${cel.rank}!`,
-              subtitle: `${cel.name} menembus 3 besar (${cel.timeStr})`,
-            })
-          }
+      setTimeout(() => {
+        if (cel.type === 'champion') {
+          fireChampionConfetti()
+          playCelebrationSound('champion', isMutedRef.current)
+          setActiveToast({
+            type: 'champion',
+            title: 'JUARA 1 BARU!',
+            subtitle: `${cel.name} merebut posisi 1 (${cel.timeStr})`,
+          })
+        } else {
+          fireTop3Confetti()
+          playCelebrationSound('top3', isMutedRef.current)
+          setActiveToast({
+            type: 'top3',
+            title: `MASUK PERINGKAT ${cel.rank}!`,
+            subtitle: `${cel.name} menembus 3 besar (${cel.timeStr})`,
+          })
+        }
 
-          if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-          toastTimerRef.current = setTimeout(() => {
-            setActiveToast(null)
-          }, 4500)
-        }, 350)
-      }
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+        toastTimerRef.current = setTimeout(() => {
+          setActiveToast(null)
+        }, 4500)
+      }, 300)
 
-      if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
-      animationTimerRef.current = setTimeout(() => {
-        isAnimatingRef.current = false
-        setMovements({}) // Kembalikan scale & z-index ke posisi normal secara halus
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
+      celebrationTimerRef.current = setTimeout(() => {
         setCelebrations({})
-
-        // Jika ada data baru yang masuk selama animasi, proses segera
-        if (pendingDataRef.current) {
-          const queued = pendingDataRef.current
-          pendingDataRef.current = null
-          applyLeaderboardUpdateRef.current?.(queued)
-        }
-      }, 2600)
-    } else {
-      // Tidak ada perubahan urutan peringkat (hanya update waktu atau nama jika ada)
-      setLeaderboard((prev) => {
-        if (
-          prev.length === nextData.length &&
-          prev.every(
-            (item, idx) =>
-              item.bib_number === nextData[idx].bib_number &&
-              item.duration_ms === nextData[idx].duration_ms &&
-              item.participant_name === nextData[idx].participant_name &&
-              item.rank === nextData[idx].rank
-          )
-        ) {
-          return prev
-        }
-        return nextData
-      })
+      }, 4000)
     }
   }, [])
-
-  useEffect(() => {
-    applyLeaderboardUpdateRef.current = applyLeaderboardUpdate
-  }, [applyLeaderboardUpdate])
 
   // 1. Fetch data dari Supabase
   const loadLeaderboardData = useCallback(async () => {
@@ -315,8 +256,8 @@ export default function LiveLeaderboard() {
       window.removeEventListener('keydown', handleKeyDown)
       supabase.removeChannel(channel)
       clearInterval(interval)
-      if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
     }
   }, [loadLeaderboardData, triggerTestCelebration])
 
@@ -453,8 +394,6 @@ export default function LiveLeaderboard() {
                   bib_number={item.bib_number}
                   participant_name={item.participant_name}
                   duration_ms={item.duration_ms}
-                  index={index}
-                  movement={movements[item.bib_number] || 'idle'}
                   celebration={celebrations[item.bib_number] || 'none'}
                 />
               ))

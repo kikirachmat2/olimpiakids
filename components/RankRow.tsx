@@ -11,7 +11,7 @@ interface RankRowProps {
   bib_number: string
   participant_name: string
   duration_ms: number | null
-  index: number
+  index?: number
   movement?: RowMovement
   celebration?: RowCelebration
 }
@@ -32,7 +32,6 @@ export default function RankRow({
   bib_number,
   participant_name,
   duration_ms,
-  movement = 'idle',
   celebration = 'none',
 }: RankRowProps) {
   const isFirst = rank === 1
@@ -89,8 +88,6 @@ export default function RankRow({
     )
   }
 
-  const isMovingUp = movement === 'up'
-  const isMovingDown = movement === 'down'
   const isChampionCelebration = celebration === 'champion'
   const isTop3Celebration = celebration === 'top3'
 
@@ -98,10 +95,6 @@ export default function RankRow({
     ? 55
     : isTop3Celebration
     ? 50
-    : isMovingUp
-    ? 45
-    : isMovingDown
-    ? 10
     : 20
 
   let celebrationClasses = ''
@@ -111,11 +104,6 @@ export default function RankRow({
   } else if (isTop3Celebration) {
     celebrationClasses =
       'ring-4 ring-amber-400 shadow-[0_6px_24px_rgba(245,158,11,0.55)]'
-  } else if (isMovingUp) {
-    celebrationClasses =
-      'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_4px_16px_rgba(245,158,11,0.45)]'
-  } else if (isMovingDown) {
-    celebrationClasses = 'opacity-95 shadow-sm'
   }
 
   return (
@@ -146,9 +134,8 @@ export default function RankRow({
         <motion.span
           key={rank}
           initial={{
-            scale: 1.4,
-            opacity: 0.2,
-            y: isMovingUp ? 8 : isMovingDown ? -8 : 0,
+            scale: 1.3,
+            opacity: 0.3,
           }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.35, ease: 'easeOut' }}
