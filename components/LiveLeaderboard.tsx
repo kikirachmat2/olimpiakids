@@ -357,61 +357,60 @@ export default function LiveLeaderboard() {
       </motion.div>
 
       {/* 2. HEADER TITLE PILL: LEBAR LEBIH LUAS DI TV, SELARAS DENGAN CONTAINER TABEL */}
-      <div className="w-full mb-1 sm:mb-1.5 shrink-0">
-        <motion.div
-          animate={{ scale: [1, 1.005, 1] }}
-          transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
-        >
-          {/* Subtle Ray Animation */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite]" />
+      {/* 2. HEADER TITLE PILL: MENGELUARKAN RUNNING HEADLINE SELEBRASI SAAT JUARA / TOP 3 */}
+      <div className="w-full mb-1 sm:mb-2 shrink-0">
+        <AnimatePresence mode="wait">
+          {activeToast ? (
+            <motion.div
+              key="toast-active"
+              initial={{ opacity: 0, scale: 0.95, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 6 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className={`w-full rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-xl text-center relative overflow-hidden select-none ${
+                activeToast.type === 'champion'
+                  ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 shadow-[0_8px_25px_rgba(234,179,8,0.7)] ring-4 ring-yellow-300/90'
+                  : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-[0_8px_25px_rgba(37,99,235,0.7)] ring-4 ring-blue-300/90'
+              }`}
+            >
+              {/* Shimmer sweep */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]" />
 
-          <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
-            <span>🍼</span>
-            <span className="truncate">
-              {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
-                ? activeRace.name
-                : activeRace?.name || 'LEADERBOARD BABY CRAWLING'}
-            </span>
-            <span>⭐</span>
-          </h1>
-        </motion.div>
-      </div>
-
-      {/* 2.5 SELEBRASI BANNER TOAST (FLOATING BROADCAST ALERT) */}
-      <AnimatePresence>
-        {activeToast && (
-          <motion.div
-            key={activeToast.title}
-            initial={{ opacity: 0, y: -20, scale: 0.9, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
-            exit={{ opacity: 0, y: -15, scale: 0.95, x: '-50%' }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            className={`fixed top-28 sm:top-36 md:top-40 left-1/2 w-[92%] max-w-2xl py-2 sm:py-2.5 px-4 sm:px-6 rounded-2xl border-[3px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex items-center justify-between gap-3 text-center z-50 backdrop-blur-md ${
-              activeToast.type === 'champion'
-                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 border-white shadow-yellow-500/60 ring-4 ring-yellow-300/80 animate-pulse'
-                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white border-white shadow-blue-500/60 ring-4 ring-blue-300/80'
-            }`}
-          >
-            <div className="w-full flex items-center justify-center gap-2.5 sm:gap-4">
-              <span className="text-2xl sm:text-3xl animate-bounce">
-                {activeToast.type === 'champion' ? '👑' : '🎉'}
-              </span>
-              <div className="flex flex-col items-center">
-                <span className="font-display font-black text-sm sm:text-base md:text-lg tracking-wider uppercase drop-shadow-sm leading-tight">
-                  {activeToast.title}
+              <div className="font-display font-black text-xs sm:text-base md:text-lg lg:text-xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-2 sm:gap-3">
+                <span className="text-base sm:text-2xl animate-bounce">
+                  {activeToast.type === 'champion' ? '👑' : '🎉'}
                 </span>
-                <span className="font-sans font-extrabold text-xs sm:text-sm md:text-base opacity-95 leading-tight">
-                  {activeToast.subtitle}
+                <span className="truncate">
+                  {activeToast.title} • {activeToast.subtitle}
+                </span>
+                <span className="text-base sm:text-2xl animate-bounce">
+                  {activeToast.type === 'champion' ? '👑' : '⭐'}
                 </span>
               </div>
-              <span className="text-2xl sm:text-3xl animate-bounce">
-                {activeToast.type === 'champion' ? '👑' : '⭐'}
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="default-title"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite]" />
+              <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
+                <span>🍼</span>
+                <span className="truncate">
+                  {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
+                    ? activeRace.name
+                    : activeRace?.name || 'LEADERBOARD BABY CRAWLING'}
+                </span>
+                <span>⭐</span>
+              </h1>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - TAMPILKAN 10 BESAR SECARA PRESISI */}
       <div className="w-full bg-white/95 backdrop-blur-md rounded-xl sm:rounded-3xl border-[2.5px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-1.5 sm:p-2.5 md:p-3 lg:p-3.5 overflow-hidden flex flex-col flex-1 min-h-0">
