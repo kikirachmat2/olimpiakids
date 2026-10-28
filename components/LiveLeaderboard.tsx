@@ -28,7 +28,6 @@ export default function LiveLeaderboard() {
   } | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
   const [logoError, setLogoError] = useState(false)
 
   const previousRanksRef = React.useRef<Map<string, number>>(new Map())
@@ -38,7 +37,11 @@ export default function LiveLeaderboard() {
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const celebrationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const isMutedRef = React.useRef(isMuted)
-  isMutedRef.current = isMuted
+  const applyLeaderboardUpdateRef = React.useRef<((data: LeaderboardItem[]) => void) | null>(null)
+
+  useEffect(() => {
+    isMutedRef.current = isMuted
+  }, [isMuted])
 
   // Fungsi Test Selebrasi manual untuk Operator Panggung (Tekan tombol 'C')
   const triggerTestCelebration = useCallback((forcedType?: 'top3' | 'champion') => {
@@ -202,7 +205,7 @@ export default function LiveLeaderboard() {
         if (pendingDataRef.current) {
           const queued = pendingDataRef.current
           pendingDataRef.current = null
-          applyLeaderboardUpdate(queued)
+          applyLeaderboardUpdateRef.current?.(queued)
         }
       }, 2600)
     } else {
@@ -225,13 +228,15 @@ export default function LiveLeaderboard() {
     }
   }, [])
 
+  useEffect(() => {
+    applyLeaderboardUpdateRef.current = applyLeaderboardUpdate
+  }, [applyLeaderboardUpdate])
+
   // 1. Fetch data dari Supabase
   const loadLeaderboardData = useCallback(async () => {
     try {
-      setFetchError(null)
       const raceRes = await getActiveRace()
       if (raceRes.error) {
-        setFetchError(raceRes.error)
         setIsLoading(false)
         return
       }
@@ -239,18 +244,15 @@ export default function LiveLeaderboard() {
       if (raceRes.data) {
         setActiveRace(raceRes.data)
         const boardRes = await getLeaderboard(raceRes.data.id)
-        if (boardRes.error) {
-          setFetchError(boardRes.error)
-        } else {
+        if (!boardRes.error) {
           applyLeaderboardUpdate(boardRes.data || [])
         }
       } else {
         setActiveRace(null)
         setLeaderboard([])
       }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Gagal menghubungi server'
-      setFetchError(errMsg)
+    } catch {
+      // Abaikan error jaringan sesaat, polling berikutnya akan mencoba lagi
     } finally {
       setIsLoading(false)
     }
@@ -459,29 +461,6 @@ export default function LiveLeaderboard() {
             )}
           </AnimatePresence>
         </div>
-      </div>
-
-      {/* 4. STAGE OPERATOR SHORTCUT CONTROL PILL (Bottom Right) */}
-      <div className="fixed bottom-2 right-2 z-50 flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity select-none text-[10px] sm:text-xs font-mono font-bold bg-slate-900/85 backdrop-blur text-white px-2.5 py-1 rounded-full shadow-lg border border-white/20">
-        <button
-          onClick={() => setIsMuted((prev) => !prev)}
-          title="Klik atau tekan 'M' untuk Mute/Unmute Audio Selebrasi"
-          className="flex items-center gap-1 hover:text-yellow-300 transition-colors"
-        >
-          <span>{isMuted ? '🔇' : '🔊'}</span>
-          <span className="hidden sm:inline">[M] {isMuted ? 'Muted' : 'Sound ON'}</span>
-        </button>
-        <span className="text-slate-500">|</span>
-        <button
-          onClick={() => triggerTestCelebration()}
-          title="Klik atau tekan 'C' untuk Test Confetti Panggung"
-          className="flex items-center gap-1 hover:text-yellow-300 transition-colors"
-        >
-          <span>🎊</span>
-          <span className="hidden sm:inline">[C] Test Confetti</span>
-        </button>
-        <span className="text-slate-500">|</span>
-        <span className="hidden sm:inline text-slate-300">[F] Fullscreen</span>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { FileSpreadsheet, CheckCircle2, Copy, ExternalLink, ShieldCheck, Zap } from 'lucide-react'
+import { FileSpreadsheet, CheckCircle2, Copy, ShieldCheck, Zap } from 'lucide-react'
 import { useToast } from '@/components/Toast'
 
 export default function SyncAdminPage() {
@@ -119,9 +119,9 @@ export default function SyncAdminPage() {
               4
             </span>
             <div>
-              <p className="font-semibold text-white">Jalankan Fungsi `setupTrigger`</p>
+              <p className="font-semibold text-white">Jalankan Fungsi `pasangTriggerOtomatis`</p>
               <p className="text-zinc-400 mt-1">
-                Pilih fungsi <code className="text-emerald-400 font-mono">setupTrigger</code> di dropdown editor Google Apps Script lalu klik <strong>Run</strong> sekali untuk mengaktifkan trigger sinkronisasi otomatis.
+                Pilih fungsi <code className="text-emerald-400 font-mono">pasangTriggerOtomatis</code> di dropdown editor Google Apps Script lalu klik <strong>Run</strong> sekali untuk mengaktifkan trigger sinkronisasi otomatis.
               </p>
             </div>
           </div>

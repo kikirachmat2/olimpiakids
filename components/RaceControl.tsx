@@ -114,7 +114,7 @@ export default function RaceControl({
     }, 50)
 
     return () => clearInterval(timer)
-  }, [activeRace?.status, activeRace?.start_time])
+  }, [activeRace])
 
   // 1. Buat Race Baru
   const handleCreateRace = async (e: React.FormEvent) => {
@@ -198,13 +198,21 @@ export default function RaceControl({
 
     const durationSec = ((data.duration_ms || 0) / 1000).toFixed(2)
     showToast(`🏁 ${name} FINISH! Waktu: ${durationSec} detik`, 'success')
-    setResults((prev) => [...prev, data])
+    setResults((prev) => {
+      const idx = prev.findIndex((r) => r.participant_id === participantId)
+      if (idx !== -1) {
+        const copy = [...prev]
+        copy[idx] = data
+        return copy
+      }
+      return [...prev, data]
+    })
     if (onRaceUpdated) onRaceUpdated()
   }
 
-  // Cek apakah peserta sudah finish
+  // Cek apakah peserta sudah memiliki catatan finish sah (duration_ms tidak null)
   const getParticipantResult = (participantId: number) => {
-    return results.find((r) => r.participant_id === participantId)
+    return results.find((r) => r.participant_id === participantId && r.duration_ms !== null)
   }
 
   return (

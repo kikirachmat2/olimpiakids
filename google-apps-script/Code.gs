@@ -100,10 +100,18 @@ function runSync_(force) {
 
 function getTargetSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  for (var i = 0; i < CONFIG.TAB_NAMES.length; i++) {
-    var sh = ss.getSheetByName(CONFIG.TAB_NAMES[i]);
-    if (sh) return sh;
+  var sheets = ss.getSheets();
+  var targets = CONFIG.TAB_NAMES.map(function (t) { return t.trim().toUpperCase(); });
+
+  // 1. Coba cocokkan dengan nama tab (case-insensitive & trimmed)
+  for (var i = 0; i < sheets.length; i++) {
+    var name = sheets[i].getName().trim().toUpperCase();
+    if (targets.indexOf(name) !== -1) return sheets[i];
   }
+
+  // 2. Fallback: jika hanya ada 1 sheet, gunakan sheet aktif tersebut
+  if (sheets.length === 1) return sheets[0];
+
   return null;
 }
 
@@ -132,7 +140,7 @@ function extractRows_(values) {
   return rows;
 }
 
-/** Cari baris header & index kolom (0-based) secara otomatis. */
+/** Cari baris header & index kolom (0-based) secara fleksibel. */
 function detectLayout_(values) {
   var maxScan = Math.min(values.length, 15);
   for (var r = 0; r < maxScan; r++) {
@@ -140,9 +148,9 @@ function detectLayout_(values) {
     var line = values[r] || [];
     for (var c = 0; c < line.length; c++) {
       var h = String(line[c] || '').toUpperCase().replace(/\s+/g, ' ').trim();
-      if (colBib < 0 && /NOMOR DADA|NO\.? ?DADA|\bBIB\b/.test(h)) colBib = c;
+      if (colBib < 0 && /NOMOR DADA|NO\.? ?DADA|\bBIB\b|NO\.? ?PESERTA/.test(h)) colBib = c;
       else if (colName < 0 && /NAMA/.test(h)) colName = c;
-      else if (colTimer < 0 && /TIMER|WAKTU/.test(h)) colTimer = c;
+      else if (colTimer < 0 && /TIMER|WAKTU|TIME|HASIL|DURASI|STOPWATCH/.test(h)) colTimer = c;
     }
     if (colBib >= 0 && colName >= 0 && colTimer >= 0) {
       return { headerRow: r, colBib: colBib, colName: colName, colTimer: colTimer };
@@ -153,33 +161,60 @@ function detectLayout_(values) {
 }
 
 /**
- * Konversi timer ke milidetik. Mendukung:
- *   "00.32.00" / "00:32.00" / "0:32:00"  -> MM.SS.CC (menit.detik.centidetik)
- *   "32.00" / "32,5"                      -> SS.CC
- *   "1:02:03.45"                          -> HH:MM:SS.CC
- *   "32"                                  -> detik
- * Nilai kosong / tidak valid -> null (peserta tetap tampil, timer "--.--.--").
+ * Konversi timer ke milidetik secara cerdas & tangguh. Mendukung:
+ *   "00.02.50" / "00:02.50" / "00:02:50" -> MM:SS.CC (2500ms)
+ *   "02.50" / "2.50" / "2,50" / "2.5"     -> SS.CC (2500ms)
+ *   "00:02" / "0:02"                     -> MM:SS (2000ms)
+ *   "2" / "2s"                           -> Detik (2000ms)
+ * Nilai kosong / tanda strip / DNF        -> null (peserta tetap tampil, timer "--.--.--").
  */
 function parseTimerToMs(raw) {
   if (raw === null || raw === undefined) return null;
-  var s = String(raw).trim().replace(/,/g, '.');
-  if (!s) return null;
-  var parts = s.split(/[.:]/);
-  for (var i = 0; i < parts.length; i++) {
-    if (!/^\d+$/.test(parts[i])) return null;
-  }
-  var frac = function (str) {
-    if (str.length === 1) return parseInt(str, 10) * 100;
-    if (str.length === 2) return parseInt(str, 10) * 10;
-    return parseInt(str.substring(0, 3), 10);
-  };
-  var n = function (str) { return parseInt(str, 10); };
+  var s = String(raw).trim().replace(/,/g, '.').replace(/[sS\"']/g, '');
+  if (!s || s === '--.--.--' || s === '-' || s === 'DNF' || s === '--') return null;
 
-  if (parts.length === 4) return ((n(parts[0]) * 60 + n(parts[1])) * 60 + n(parts[2])) * 1000 + frac(parts[3]);
-  if (parts.length === 3) return (n(parts[0]) * 60 + n(parts[1])) * 1000 + frac(parts[2]);
-  if (parts.length === 2) return n(parts[0]) * 1000 + frac(parts[1]);
-  if (parts.length === 1) return n(parts[0]) * 1000;
-  return null;
+  var result = null;
+  if (s.indexOf(':') !== -1) {
+    var cParts = s.split(':');
+    if (cParts.length === 2) {
+      var min = parseInt(cParts[0], 10);
+      var secCs = cParts[1].split('.');
+      if (secCs.length === 2) {
+        var sec = parseInt(secCs[0], 10);
+        var csStr = secCs[1];
+        var cs = csStr.length === 1 ? parseInt(csStr, 10) * 100 : csStr.length === 2 ? parseInt(csStr, 10) * 10 : parseInt(csStr.substring(0, 3), 10);
+        result = (min * 60 + sec) * 1000 + cs;
+      } else {
+        var sec = parseInt(cParts[1], 10);
+        result = (min * 60 + sec) * 1000;
+      }
+    } else if (cParts.length === 3) {
+      var p0 = parseInt(cParts[0], 10);
+      var p1 = parseInt(cParts[1], 10);
+      var p2Str = cParts[2];
+      var cs = p2Str.length === 1 ? parseInt(p2Str, 10) * 100 : p2Str.length === 2 ? parseInt(p2Str, 10) * 10 : parseInt(p2Str.substring(0, 3), 10);
+      result = (p0 * 60 + p1) * 1000 + cs;
+    }
+  } else {
+    var parts = s.split('.');
+    if (parts.length === 3) {
+      var min = parseInt(parts[0], 10);
+      var sec = parseInt(parts[1], 10);
+      var csStr = parts[2];
+      var cs = csStr.length === 1 ? parseInt(csStr, 10) * 100 : csStr.length === 2 ? parseInt(csStr, 10) * 10 : parseInt(csStr.substring(0, 3), 10);
+      result = (min * 60 + sec) * 1000 + cs;
+    } else if (parts.length === 2) {
+      var sec = parseInt(parts[0], 10);
+      var csStr = parts[1];
+      var cs = csStr.length === 1 ? parseInt(csStr, 10) * 100 : csStr.length === 2 ? parseInt(csStr, 10) * 10 : parseInt(csStr.substring(0, 3), 10);
+      result = sec * 1000 + cs;
+    } else if (parts.length === 1) {
+      var n = parseInt(parts[0], 10);
+      result = isNaN(n) ? null : n * 1000;
+    }
+  }
+
+  return (result === null || isNaN(result)) ? null : result;
 }
 
 // =========================================================================

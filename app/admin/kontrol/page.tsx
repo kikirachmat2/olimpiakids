@@ -11,28 +11,22 @@ export default function KontrolAdminPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
 
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = React.useCallback(async () => {
     const [raceRes, partRes] = await Promise.all([
       getActiveRace(),
       getParticipants(),
     ])
 
-    if (raceRes.data) {
-      setActiveRace(raceRes.data)
-    } else {
-      setActiveRace(null)
-    }
-
+    setActiveRace(raceRes.data || null)
     if (partRes.data) {
       setParticipants(partRes.data)
     }
     setLoading(false)
-  }
+  }, [])
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [loadData])
 
   if (loading) {
     return (

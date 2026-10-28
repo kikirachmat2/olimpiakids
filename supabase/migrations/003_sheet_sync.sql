@@ -89,6 +89,17 @@ BEGIN
 
   SELECT count(*) INTO v_valid FROM _sheet_rows;
 
+  -- Pengaman krusial: jika baris valid 0 (misal sheet kosong / header gagal dibaca),
+  -- JANGAN hapus data yang ada di database!
+  IF v_valid = 0 THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'Tidak ada data peserta valid yang terbaca dari Sheet',
+      'received', v_received,
+      'synced', 0
+    );
+  END IF;
+
   -- Peserta: cocokkan berdasarkan NOMOR DADA, update nama hanya jika berubah
   INSERT INTO participants (name, bib_number)
   SELECT name, bib FROM _sheet_rows
@@ -96,7 +107,7 @@ BEGIN
     SET name = EXCLUDED.name
     WHERE participants.name IS DISTINCT FROM EXCLUDED.name;
 
-  -- Hapus HANYA peserta yang sudah tidak ada di Sheet
+  -- Hapus HANYA peserta yang sudah tidak ada di Sheet (hanya jika v_valid > 0)
   WITH del AS (
     DELETE FROM race_results rr
     WHERE rr.race_event_id = p_event_id
@@ -109,17 +120,17 @@ BEGIN
   )
   SELECT count(*) INTO v_deleted FROM del;
 
-  -- Insert/update hasil; baris yang tidak berubah tidak disentuh (tidak memicu realtime)
+  -- Insert/update hasil; pertahankan duration_ms yang sudah ada jika dari Sheet bernilai null
   WITH up AS (
     INSERT INTO race_results (participant_id, race_event_id, duration_ms, position, status, finish_time)
     SELECT p.id, p_event_id, s.duration_ms, s.position, 'finished', NOW()
     FROM _sheet_rows s
     JOIN participants p ON p.bib_number = s.bib
     ON CONFLICT (participant_id, race_event_id) DO UPDATE
-      SET duration_ms = EXCLUDED.duration_ms,
+      SET duration_ms = COALESCE(EXCLUDED.duration_ms, race_results.duration_ms),
           position = EXCLUDED.position,
           status = 'finished'
-      WHERE race_results.duration_ms IS DISTINCT FROM EXCLUDED.duration_ms
+      WHERE race_results.duration_ms IS DISTINCT FROM COALESCE(EXCLUDED.duration_ms, race_results.duration_ms)
          OR race_results.position IS DISTINCT FROM EXCLUDED.position
          OR race_results.status IS DISTINCT FROM 'finished'
     RETURNING (xmax = 0) AS is_insert

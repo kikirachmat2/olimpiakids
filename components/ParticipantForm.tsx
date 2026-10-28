@@ -26,10 +26,13 @@ export default function ParticipantForm({ onSuccess }: ParticipantFormProps) {
 
     setLoading(true)
 
+    const cleanBib = bibNumber.trim().toUpperCase()
+    const cleanName = name.trim()
+
     const parsedAge = ageMonths ? parseInt(ageMonths, 10) : null
     const { error } = await addParticipant({
-      name: name.trim(),
-      bib_number: bibNumber.trim(),
+      name: cleanName,
+      bib_number: cleanBib,
       age_months: parsedAge && !isNaN(parsedAge) ? parsedAge : null,
     })
 
@@ -40,7 +43,7 @@ export default function ParticipantForm({ onSuccess }: ParticipantFormProps) {
       return
     }
 
-    showToast(`Peserta "${name}" (BIB: ${bibNumber}) berhasil ditambahkan!`, 'success')
+    showToast(`Peserta "${cleanName}" (BIB: ${cleanBib}) berhasil ditambahkan!`, 'success')
     setName('')
     setBibNumber('')
     setAgeMonths('')

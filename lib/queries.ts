@@ -40,11 +40,14 @@ export async function addParticipant(data: {
   age_months: number | null
 }): Promise<QueryResponse<Participant>> {
   try {
+    const cleanBib = data.bib_number.trim().toUpperCase()
+    const cleanName = data.name.trim()
+
     const { data: inserted, error } = await supabase
       .from('participants')
       .insert({
-        name: data.name.trim(),
-        bib_number: data.bib_number.trim(),
+        name: cleanName,
+        bib_number: cleanBib,
         age_months: data.age_months,
       })
       .select()
@@ -52,7 +55,7 @@ export async function addParticipant(data: {
 
     if (error) {
       if (error.code === '23505' || error.message.includes('unique constraint') || error.message.includes('bib_number')) {
-        return { data: null, error: `Nomor BIB "${data.bib_number}" sudah terdaftar. Gunakan nomor lain.` }
+        return { data: null, error: `Nomor BIB "${cleanBib}" sudah terdaftar. Gunakan nomor lain.` }
       }
       return { data: null, error: `Gagal menambahkan peserta: ${error.message}` }
     }
@@ -253,15 +256,15 @@ export async function recordFinish(
       return { data: null, error: 'Waktu mulai lomba belum tercatat.' }
     }
 
-    // 2. Cek apakah peserta sudah pernah finish di event ini
+    // 2. Cek apakah peserta sudah pernah punya catatan di event ini
     const { data: existingResult } = await supabase
       .from('race_results')
-      .select('id')
+      .select('id, duration_ms')
       .eq('race_event_id', eventId)
       .eq('participant_id', participantId)
       .maybeSingle()
 
-    if (existingResult) {
+    if (existingResult && existingResult.duration_ms !== null) {
       return { data: null, error: 'Peserta ini sudah tercatat finish pada sesi ini!' }
     }
 
@@ -271,27 +274,45 @@ export async function recordFinish(
     const durationMs = Math.max(0, now - startTime)
     const finishTimeIso = new Date(now).toISOString()
 
-    // 4. Simpan ke race_results
-    const { data: result, error: insertErr } = await supabase
-      .from('race_results')
-      .insert({
-        participant_id: participantId,
-        race_event_id: eventId,
-        finish_time: finishTimeIso,
-        duration_ms: durationMs,
-        status: 'finished',
-      })
-      .select()
-      .single()
+    // 4. Update jika baris sudah dibuat (misal dari sinkronisasi Google Sheets) atau Insert baru
+    if (existingResult) {
+      const { data: updated, error: updateErr } = await supabase
+        .from('race_results')
+        .update({
+          finish_time: finishTimeIso,
+          duration_ms: durationMs,
+          status: 'finished',
+        })
+        .eq('id', existingResult.id)
+        .select()
+        .single()
 
-    if (insertErr) {
-      if (insertErr.code === '23505') {
-        return { data: null, error: 'Peserta ini sudah tercatat finish pada sesi ini!' }
+      if (updateErr) {
+        return { data: null, error: `Gagal memperbarui catatan finish: ${updateErr.message}` }
       }
-      return { data: null, error: `Gagal mencatat finish: ${insertErr.message}` }
-    }
+      return { data: updated as RaceResult, error: null }
+    } else {
+      const { data: result, error: insertErr } = await supabase
+        .from('race_results')
+        .insert({
+          participant_id: participantId,
+          race_event_id: eventId,
+          finish_time: finishTimeIso,
+          duration_ms: durationMs,
+          status: 'finished',
+        })
+        .select()
+        .single()
 
-    return { data: result as RaceResult, error: null }
+      if (insertErr) {
+        if (insertErr.code === '23505') {
+          return { data: null, error: 'Peserta ini sudah tercatat finish pada sesi ini!' }
+        }
+        return { data: null, error: `Gagal mencatat finish: ${insertErr.message}` }
+      }
+
+      return { data: result as RaceResult, error: null }
+    }
   } catch (err: unknown) {
     return { data: null, error: err instanceof Error ? err.message : 'Terjadi kesalahan sistem' }
   }
@@ -299,6 +320,9 @@ export async function recordFinish(
 
 /**
  * Mengambil papan skor (Leaderboard) dengan menggabungkan race_results & participants
+ * Urutan utama: duration_ms ASC (waktu tercepat di atas).
+ * Peserta dengan waktu seri dipecah berdasarkan urutan position Sheet lalu id.
+ * Peserta tanpa waktu (null) ditaruh di bagian paling bawah.
  */
 export async function getLeaderboard(eventId: number): Promise<QueryResponse<LeaderboardItem[]>> {
   try {
@@ -318,15 +342,28 @@ export async function getLeaderboard(eventId: number): Promise<QueryResponse<Lea
         )
       `)
       .eq('race_event_id', eventId)
-      .order('position', { ascending: true, nullsFirst: false })
       .order('duration_ms', { ascending: true, nullsFirst: false })
+      .order('position', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
 
     if (error) {
       return { data: null, error: `Gagal memuat papan skor: ${error.message}` }
     }
 
+    interface LeaderboardRowQuery {
+      participant_id: number
+      duration_ms: number | null
+      finish_time: string
+      status: LeaderboardItem['status']
+      participants: {
+        id: number
+        name: string
+        bib_number: string
+      } | null
+    }
+
     // Format data menjadi struktur LeaderboardItem yang rapi
-    const leaderboard: LeaderboardItem[] = (data || []).map((row: any, index: number) => ({
+    const leaderboard: LeaderboardItem[] = ((data as unknown as LeaderboardRowQuery[]) || []).map((row, index: number) => ({
       rank: index + 1,
       participant_id: row.participant_id,
       participant_name: row.participants?.name || 'Anonim',

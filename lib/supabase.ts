@@ -30,7 +30,7 @@ export const supabase = createBrowserSupabaseClient()
  */
 export function createServerSupabaseClient(cookieStore?: {
   getAll: () => { name: string; value: string }[]
-  setAll?: (cookies: { name: string; value: string; options?: any }[]) => void
+  setAll?: (cookies: { name: string; value: string; options?: Record<string, unknown> }[]) => void
 }) {
   const { supabaseUrl, supabaseAnonKey } = getValidSupabaseConfig()
   return createSsrServerClient(supabaseUrl, supabaseAnonKey, {

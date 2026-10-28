@@ -32,7 +32,6 @@ export default function RankRow({
   bib_number,
   participant_name,
   duration_ms,
-  index,
   movement = 'idle',
   celebration = 'none',
 }: RankRowProps) {
@@ -63,7 +62,7 @@ export default function RankRow({
   } else if (isSecond) {
     // 🥈 Juara 2: Special Silver / Platinum Metalik tegas (Jauh lebih pekat & kontras dari baris 4 kebawah)
     rowStyle =
-      'bg-gradient-to-b from-slate-200 via-zinc-300 to-slate-400 border-[2.5px] sm:border-[3px] border-slate-400 text-slate-900 shadow-[0_4px_0_rgba(100,116,139,1)] sm:shadow-[0_5px_0_rgba(100,116,139,1)] ring-2 ring-slate-300/80'
+      'bg-gradient-to-b from-slate-200 via-zinc-300 to-slate-400 border-2 border-slate-400 text-slate-900 shadow-[0_3px_0_rgba(100,116,139,1)] sm:shadow-[0_4px_0_rgba(100,116,139,1)] ring-1 sm:ring-2 ring-slate-300/80'
     timerStyle = 'bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-md border border-slate-500/30'
     badgeIcon = (
       <motion.span
@@ -94,17 +93,6 @@ export default function RankRow({
   const isMovingDown = movement === 'down'
   const isChampionCelebration = celebration === 'champion'
   const isTop3Celebration = celebration === 'top3'
-  const isCelebrating = isChampionCelebration || isTop3Celebration
-
-  const targetScale = isChampionCelebration
-    ? 1.075
-    : isTop3Celebration
-    ? 1.055
-    : isMovingUp
-    ? 1.035
-    : isMovingDown
-    ? 0.985
-    : 1
 
   const targetZIndex = isChampionCelebration
     ? 55
@@ -119,13 +107,13 @@ export default function RankRow({
   let celebrationClasses = ''
   if (isChampionCelebration) {
     celebrationClasses =
-      'ring-4 sm:ring-[5px] ring-yellow-300 shadow-[0_20px_50px_rgba(234,179,8,0.7)]'
+      'ring-4 sm:ring-[5px] ring-yellow-300 shadow-[0_8px_30px_rgba(234,179,8,0.7)]'
   } else if (isTop3Celebration) {
     celebrationClasses =
-      'ring-4 ring-amber-400 shadow-[0_16px_40px_rgba(245,158,11,0.55)]'
+      'ring-4 ring-amber-400 shadow-[0_6px_24px_rgba(245,158,11,0.55)]'
   } else if (isMovingUp) {
     celebrationClasses =
-      'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_12px_28px_rgba(245,158,11,0.45)]'
+      'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_4px_16px_rgba(245,158,11,0.45)]'
   } else if (isMovingDown) {
     celebrationClasses = 'opacity-95 shadow-sm'
   }
@@ -137,23 +125,17 @@ export default function RankRow({
       animate={{
         opacity: 1,
         y: 0,
-        scale: targetScale,
         zIndex: targetZIndex,
       }}
-      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-      whileHover={{ scale: 1.012, transition: { duration: 0.15 } }}
+      exit={{ opacity: 0, transition: { duration: 0.2 } }}
       transition={{
         layout: {
           duration: 2.4,
           ease: [0.16, 1, 0.3, 1], // Broadcast ultra-smooth glide curve
         },
-        scale: {
-          duration: isCelebrating ? 0.35 : isMovingUp ? 0.4 : 0.6,
-          ease: 'easeOut',
-        },
         opacity: { duration: 0.3 },
       }}
-      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none relative transition-[background,border-color,box-shadow,color] duration-500 ease-out will-change-transform ${rowStyle} ${celebrationClasses}`}
+      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none relative transition-[background,border-color,box-shadow,color] duration-500 ease-out ${rowStyle} ${celebrationClasses}`}
       style={{
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
@@ -183,38 +165,16 @@ export default function RankRow({
       {/* Kolom 3 (48%): NAMA ANAK */}
       <div className="font-sans font-extrabold text-xs sm:text-base md:text-lg lg:text-xl xl:text-2xl truncate pl-2 sm:pl-3 pr-1 flex items-center gap-1.5">
         <span className="truncate">{participant_name}</span>
-        {isFirst && !isCelebrating && <span className="text-xs sm:text-base">👑</span>}
-        {isChampionCelebration && (
-          <motion.span
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: [1, 1.12, 1], opacity: 1 }}
-            transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
-            className="bg-gradient-to-r from-red-600 via-amber-600 to-yellow-500 text-white font-display font-black text-[9px] sm:text-xs md:text-sm px-2.5 sm:px-3 py-0.5 rounded-full shadow-lg uppercase tracking-wider shrink-0 border border-yellow-200 ring-2 ring-yellow-400/80 drop-shadow-sm"
-          >
-            👑 JUARA 1 BARU!
-          </motion.span>
-        )}
-        {isTop3Celebration && (
-          <motion.span
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: [1, 1.08, 1], opacity: 1 }}
-            transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-display font-black text-[9px] sm:text-xs md:text-sm px-2 sm:px-2.5 py-0.5 rounded-full shadow-md uppercase tracking-wide shrink-0 border border-blue-300"
-          >
-            🎉 MASUK 3 BESAR!
-          </motion.span>
-        )}
+        {isFirst && <span className="text-xs sm:text-base shrink-0">👑</span>}
       </div>
 
       {/* Kolom 4 (22%): TIMER DENGAN WARNA SPESIAL */}
       <div className="flex justify-center items-center">
-        <motion.div
-          animate={isFirst ? { scale: [1, 1.03, 1] } : {}}
-          transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+        <div
           className={`w-[95%] sm:w-[88%] max-w-[130px] md:max-w-[150px] xl:max-w-[165px] py-1 sm:py-1.5 lg:py-2 rounded-full text-center font-mono font-black text-[11px] sm:text-sm md:text-base lg:text-lg xl:text-xl tracking-tight ${timerStyle}`}
         >
           {formatTimerMMSSCC(duration_ms)}
-        </motion.div>
+        </div>
       </div>
     </motion.div>
   )

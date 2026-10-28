@@ -10,18 +10,17 @@ export default function PesertaAdminPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchParticipants = async () => {
-    setLoading(true)
+  const fetchParticipants = React.useCallback(async () => {
     const { data } = await getParticipants()
     if (data) {
       setParticipants(data)
     }
     setLoading(false)
-  }
+  }, [])
 
   useEffect(() => {
     fetchParticipants()
-  }, [])
+  }, [fetchParticipants])
 
   return (
     <div className="space-y-8">
