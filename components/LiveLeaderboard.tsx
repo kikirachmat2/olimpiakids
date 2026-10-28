@@ -73,7 +73,7 @@ export default function LiveLeaderboard() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => {
       setActiveToast(null)
-    }, 4500)
+    }, 12000)
   }, [leaderboard])
 
   // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik + Selebrasi
@@ -387,7 +387,7 @@ export default function LiveLeaderboard() {
             animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
             exit={{ opacity: 0, y: -15, scale: 0.95, x: '-50%' }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className={`fixed top-28 sm:top-36 md:top-40 left-1/2 -translate-x-1/2 w-[92%] max-w-2xl py-2 sm:py-2.5 px-4 sm:px-6 rounded-2xl border-[3px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex items-center justify-between gap-3 text-center z-50 backdrop-blur-md ${
+            className={`fixed top-28 sm:top-36 md:top-40 left-1/2 w-[92%] max-w-2xl py-2 sm:py-2.5 px-4 sm:px-6 rounded-2xl border-[3px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex items-center justify-between gap-3 text-center z-50 backdrop-blur-md ${
               activeToast.type === 'champion'
                 ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 border-white shadow-yellow-500/60 ring-4 ring-yellow-300/80 animate-pulse'
                 : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white border-white shadow-blue-500/60 ring-4 ring-blue-300/80'
