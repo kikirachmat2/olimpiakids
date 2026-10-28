@@ -3,12 +3,15 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 
+export type RowMovement = 'up' | 'down' | 'idle'
+
 interface RankRowProps {
   rank: number
   bib_number: string
   participant_name: string
   duration_ms: number | null
   index: number
+  movement?: RowMovement
 }
 
 // Format timer MM.SS.CC (menit.detik.centidetik) contoh: 15000ms -> "00.15.00"
@@ -28,6 +31,7 @@ export default function RankRow({
   participant_name,
   duration_ms,
   index,
+  movement = 'idle',
 }: RankRowProps) {
   const isFirst = rank === 1
   const isSecond = rank === 2
@@ -83,6 +87,9 @@ export default function RankRow({
     )
   }
 
+  const isMovingUp = movement === 'up'
+  const isMovingDown = movement === 'down'
+
   return (
     <motion.div
       layout="position"
@@ -90,23 +97,29 @@ export default function RankRow({
       animate={{
         opacity: 1,
         y: 0,
-        transition: {
-          delay: Math.min(index * 0.03, 0.3),
-          duration: 0.3,
-          ease: 'easeOut',
-        },
+        scale: isMovingUp ? 1.035 : isMovingDown ? 0.985 : 1,
+        zIndex: isMovingUp ? 45 : isMovingDown ? 10 : 20,
       }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
       whileHover={{ scale: 1.012, transition: { duration: 0.15 } }}
       transition={{
         layout: {
-          type: 'spring',
-          stiffness: 220,
-          damping: 24,
-          mass: 0.7,
+          duration: 2.4,
+          ease: [0.16, 1, 0.3, 1], // Broadcast ultra-smooth glide curve
         },
+        scale: {
+          duration: isMovingUp ? 0.4 : 0.6,
+          ease: 'easeOut',
+        },
+        opacity: { duration: 0.3 },
       }}
-      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none transition-[background,border-color,box-shadow,color] duration-500 ease-out will-change-transform ${rowStyle}`}
+      className={`grid items-center rounded-lg sm:rounded-xl md:rounded-2xl min-h-[36px] sm:min-h-[44px] md:min-h-[50px] lg:min-h-[54px] xl:min-h-[58px] mb-1 sm:mb-1.5 md:mb-2 px-2.5 sm:px-4 md:px-5 py-1 sm:py-1.5 lg:py-2 select-none relative transition-[background,border-color,box-shadow,color] duration-500 ease-out will-change-transform ${rowStyle} ${
+        isMovingUp
+          ? 'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_12px_28px_rgba(245,158,11,0.45)]'
+          : isMovingDown
+          ? 'opacity-95 shadow-sm'
+          : ''
+      }`}
       style={{
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
@@ -116,9 +129,13 @@ export default function RankRow({
         {badgeIcon}
         <motion.span
           key={rank}
-          initial={{ scale: 1.3, opacity: 0.5 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+          initial={{
+            scale: 1.4,
+            opacity: 0.2,
+            y: isMovingUp ? 8 : isMovingDown ? -8 : 0,
+          }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.35, ease: 'easeOut' }}
         >
           {rank}
         </motion.span>

@@ -6,14 +6,106 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { LeaderboardItem, RaceEvent } from '@/types/database'
 import { getActiveRace, getLeaderboard } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
-import RankRow from './RankRow'
+import RankRow, { RowMovement } from './RankRow'
 
 export default function LiveLeaderboard() {
   const [activeRace, setActiveRace] = useState<RaceEvent | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
+  const [movements, setMovements] = useState<Record<string, RowMovement>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [logoError, setLogoError] = useState(false)
+
+  const previousRanksRef = React.useRef<Map<string, number>>(new Map())
+  const isAnimatingRef = React.useRef(false)
+  const pendingDataRef = React.useRef<LeaderboardItem[] | null>(null)
+  const animationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
+
+  // Buffer & proses pergerakan peringkat dengan animasi broadcast 2.4 detik
+  const applyLeaderboardUpdate = useCallback((nextData: LeaderboardItem[]) => {
+    // Jika sedang dalam proses animasi pergerakan, tahan data baru agar transisi tidak patah/terpotong
+    if (isAnimatingRef.current) {
+      pendingDataRef.current = nextData
+      return
+    }
+
+    const prevRanks = previousRanksRef.current
+    const newMovements: Record<string, RowMovement> = {}
+    let hasRankChanges = false
+
+    // Initial load: simpan posisi awal tanpa memicu animasi perpindahan
+    if (prevRanks.size === 0) {
+      nextData.forEach((item, idx) => {
+        const rank = item.rank || idx + 1
+        prevRanks.set(item.bib_number, rank)
+      })
+      setLeaderboard(nextData)
+      return
+    }
+
+    // Deteksi naik / turun untuk setiap nomor dada
+    nextData.forEach((item, idx) => {
+      const newRank = item.rank || idx + 1
+      const oldRank = prevRanks.get(item.bib_number)
+
+      if (oldRank !== undefined && oldRank !== newRank) {
+        hasRankChanges = true
+        if (newRank < oldRank) {
+          // Naik ke peringkat lebih tinggi (misal: 8 -> 1)
+          newMovements[item.bib_number] = 'up'
+        } else {
+          // Turun peringkat (misal: 1 -> 2)
+          newMovements[item.bib_number] = 'down'
+        }
+      } else {
+        newMovements[item.bib_number] = 'idle'
+      }
+    })
+
+    // Perbarui map peringkat sekarang
+    const newRanksMap = new Map<string, number>()
+    nextData.forEach((item, idx) => {
+      newRanksMap.set(item.bib_number, item.rank || idx + 1)
+    })
+    previousRanksRef.current = newRanksMap
+
+    if (hasRankChanges) {
+      // Kunci proses animasi selama 2.6 detik (2.4 detik animasi layout + buffer 200ms)
+      isAnimatingRef.current = true
+      setMovements(newMovements)
+      setLeaderboard(nextData)
+
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
+      animationTimerRef.current = setTimeout(() => {
+        isAnimatingRef.current = false
+        setMovements({}) // Kembalikan scale & z-index ke posisi normal secara halus
+
+        // Jika ada data baru yang masuk selama animasi, proses segera
+        if (pendingDataRef.current) {
+          const queued = pendingDataRef.current
+          pendingDataRef.current = null
+          applyLeaderboardUpdate(queued)
+        }
+      }, 2600)
+    } else {
+      // Tidak ada perubahan urutan peringkat (hanya update waktu atau nama jika ada)
+      setLeaderboard((prev) => {
+        if (
+          prev.length === nextData.length &&
+          prev.every(
+            (item, idx) =>
+              item.bib_number === nextData[idx].bib_number &&
+              item.duration_ms === nextData[idx].duration_ms &&
+              item.participant_name === nextData[idx].participant_name &&
+              item.rank === nextData[idx].rank
+          )
+        ) {
+          return prev
+        }
+        return nextData
+      })
+    }
+  }, [])
 
   // 1. Fetch data dari Supabase
   const loadLeaderboardData = useCallback(async () => {
@@ -32,22 +124,7 @@ export default function LiveLeaderboard() {
         if (boardRes.error) {
           setFetchError(boardRes.error)
         } else {
-          setLeaderboard((prev) => {
-            const next = boardRes.data || []
-            if (
-              prev.length === next.length &&
-              prev.every(
-                (item, idx) =>
-                  item.bib_number === next[idx].bib_number &&
-                  item.duration_ms === next[idx].duration_ms &&
-                  item.participant_name === next[idx].participant_name &&
-                  item.rank === next[idx].rank
-              )
-            ) {
-              return prev
-            }
-            return next
-          })
+          applyLeaderboardUpdate(boardRes.data || [])
         }
       } else {
         setActiveRace(null)
@@ -59,7 +136,7 @@ export default function LiveLeaderboard() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [applyLeaderboardUpdate])
 
   // 2. Initial load + Supabase Realtime Subscription + Auto Polling Fallback (setiap 2 detik)
   useEffect(() => {
@@ -99,6 +176,7 @@ export default function LiveLeaderboard() {
     return () => {
       supabase.removeChannel(channel)
       clearInterval(interval)
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current)
     }
   }, [loadLeaderboardData])
 
@@ -200,6 +278,7 @@ export default function LiveLeaderboard() {
                   participant_name={item.participant_name}
                   duration_ms={item.duration_ms}
                   index={index}
+                  movement={movements[item.bib_number] || 'idle'}
                 />
               ))
             )}
