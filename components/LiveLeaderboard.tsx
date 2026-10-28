@@ -378,34 +378,34 @@ export default function LiveLeaderboard() {
         </motion.div>
       </div>
 
-      {/* 2.5 SELEBRASI BANNER TOAST (BROADCAST ALERT SAAT TEMBUS TOP 3 / JUARA 1) */}
+      {/* 2.5 SELEBRASI BANNER TOAST (FLOATING BROADCAST ALERT) */}
       <AnimatePresence>
         {activeToast && (
           <motion.div
             key={activeToast.title}
-            initial={{ opacity: 0, y: -16, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.96 }}
+            initial={{ opacity: 0, y: -20, scale: 0.9, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
+            exit={{ opacity: 0, y: -15, scale: 0.95, x: '-50%' }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className={`w-full max-w-2xl mx-auto mb-1.5 py-1.5 sm:py-2 px-3 sm:px-6 rounded-xl sm:rounded-2xl border-2 sm:border-3 shadow-2xl flex items-center justify-between gap-2.5 text-center shrink-0 z-40 ${
+            className={`fixed top-28 sm:top-36 md:top-40 left-1/2 -translate-x-1/2 w-[92%] max-w-2xl py-2 sm:py-2.5 px-4 sm:px-6 rounded-2xl border-[3px] shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex items-center justify-between gap-3 text-center z-50 backdrop-blur-md ${
               activeToast.type === 'champion'
-                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 border-white shadow-[0_10px_30px_rgba(234,179,8,0.55)]'
-                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white border-white shadow-[0_10px_30px_rgba(37,99,235,0.55)]'
+                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 border-white shadow-yellow-500/60 ring-4 ring-yellow-300/80 animate-pulse'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white border-white shadow-blue-500/60 ring-4 ring-blue-300/80'
             }`}
           >
-            <div className="w-full flex items-center justify-center gap-2 sm:gap-3">
-              <span className="text-lg sm:text-2xl animate-bounce">
+            <div className="w-full flex items-center justify-center gap-2.5 sm:gap-4">
+              <span className="text-2xl sm:text-3xl animate-bounce">
                 {activeToast.type === 'champion' ? '👑' : '🎉'}
               </span>
               <div className="flex flex-col items-center">
-                <span className="font-display font-black text-xs sm:text-sm md:text-base tracking-wide uppercase drop-shadow-sm leading-tight">
+                <span className="font-display font-black text-sm sm:text-base md:text-lg tracking-wider uppercase drop-shadow-sm leading-tight">
                   {activeToast.title}
                 </span>
-                <span className="font-sans font-extrabold text-[10px] sm:text-xs md:text-sm opacity-95 leading-tight">
+                <span className="font-sans font-extrabold text-xs sm:text-sm md:text-base opacity-95 leading-tight">
                   {activeToast.subtitle}
                 </span>
               </div>
-              <span className="text-lg sm:text-2xl animate-bounce">
+              <span className="text-2xl sm:text-3xl animate-bounce">
                 {activeToast.type === 'champion' ? '👑' : '⭐'}
               </span>
             </div>
