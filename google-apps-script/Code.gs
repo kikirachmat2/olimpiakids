@@ -319,3 +319,107 @@ function notify_(msg) {
     // dijalankan dari trigger/editor tanpa UI
   }
 }
+
+// =========================================================================
+// 6. WEB APP ENDPOINT UNTUK /WASIT (MENERIMA INPUT URUTAN HASIL MATCH)
+// =========================================================================
+
+/**
+ * Endpoint HTTP POST untuk menerima urutan ranking langsung dari web /wasit
+ */
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Server sibuk, coba sesaat lagi.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  try {
+    var contents = e && e.postData ? e.postData.contents : '';
+    if (!contents) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Data POST kosong.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var payload = JSON.parse(contents);
+    if (payload.action === 'SUBMIT_URUTAN') {
+      var results = payload.results || [];
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+      // Target penulisan urutan: tab WASIT 1 dan MASTER DATABASE
+      var targetSheets = [
+        ss.getSheetByName('WASIT 1'),
+        ss.getSheetByName('MASTER DATABASE')
+      ].filter(Boolean);
+
+      if (targetSheets.length === 0) {
+        targetSheets = [ss.getSheets()[0]];
+      }
+
+      var resultMap = {};
+      results.forEach(function(item) {
+        if (item.bib_number) {
+          var val = item.position;
+          if (item.status === 'dnf') val = 'DNF';
+          if (item.status === 'dns') val = 'DNS';
+          resultMap[item.bib_number.trim().toUpperCase()] = val;
+        }
+      });
+
+      var totalUpdated = 0;
+      targetSheets.forEach(function(sh) {
+        var data = sh.getDataRange().getValues();
+        // Cari posisi kolom NOMOR DADA dan URUTAN
+        var colBib = 1;      // Default kolom B
+        var colUrutan = 3;   // Default kolom D (WASIT 1) atau E (MASTER DATABASE)
+        
+        // Scan baris 1-3 untuk menemukan header
+        for (var r = 0; r < Math.min(data.length, 4); r++) {
+          for (var c = 0; c < data[r].length; c++) {
+            var header = String(data[r][c]).trim().toUpperCase();
+            if (header.indexOf('NOMOR') !== -1 || header.indexOf('BIB') !== -1) colBib = c;
+            if (header === 'URUTAN') colUrutan = c;
+          }
+        }
+
+        // Tulis nilai urutan
+        for (var i = 0; i < data.length; i++) {
+          var bibInRow = String(data[i][colBib]).trim().toUpperCase();
+          if (resultMap[bibInRow] !== undefined) {
+            sh.getRange(i + 1, colUrutan + 1).setValue(resultMap[bibInRow]);
+            totalUpdated++;
+          }
+        }
+      });
+
+      SpreadsheetApp.flush();
+      // Langsung picu sinkronisasi data ke Supabase & Leaderboard TV
+      var syncResult = runSync_(true);
+
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        message: 'Berhasil mencatat ' + totalUpdated + ' urutan di Sheet (' + (syncResult.message || '') + ')',
+        matchId: payload.matchId,
+        matchTitle: payload.matchTitle
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Aksi tidak dikenal.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    Logger.log('doPost Error: ' + err);
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Endpoint GET untuk tes koneksi Web App */
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    ok: true,
+    service: 'Olimpiakids Wasit Web App Endpoint',
+    timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
