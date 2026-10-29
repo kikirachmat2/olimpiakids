@@ -35,6 +35,27 @@ export default function LiveLeaderboard() {
   const isMutedRef = React.useRef(isMuted)
   const leaderboardRef = React.useRef(leaderboard)
 
+  // Hitung jumlah sisa bayi yang belum tanding (skor/timer belum diinput / null)
+  const remainingCount = React.useMemo(() => {
+    return leaderboard.filter(
+      (item) => item.duration_ms === null || item.duration_ms === undefined
+    ).length
+  }, [leaderboard])
+
+  const [isCountPulsing, setIsCountPulsing] = useState(false)
+  const prevRemainingRef = React.useRef<number | null>(null)
+
+  useEffect(() => {
+    // Picu animasi pop/pulse setiap kali angka sisa peserta berubah (setelah initial load)
+    if (prevRemainingRef.current !== null && prevRemainingRef.current !== remainingCount) {
+      setIsCountPulsing(true)
+      const timer = setTimeout(() => setIsCountPulsing(false), 800)
+      prevRemainingRef.current = remainingCount
+      return () => clearTimeout(timer)
+    }
+    prevRemainingRef.current = remainingCount
+  }, [remainingCount])
+
   useEffect(() => {
     isMutedRef.current = isMuted
   }, [isMuted])
@@ -342,10 +363,12 @@ export default function LiveLeaderboard() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden"
+              className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden flex items-center justify-center"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite]" />
-              <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite] pointer-events-none" />
+              
+              {/* Judul Utama Lomba (Center) */}
+              <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 px-10 sm:px-24 md:px-36">
                 <span>🍼</span>
                 <span className="truncate">
                   {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
@@ -354,6 +377,61 @@ export default function LiveLeaderboard() {
                 </span>
                 <span>⭐</span>
               </h1>
+
+              {/* Grafis Sisa Bayi Belum Tanding (Ujung Kanan Bar Biru) */}
+              {leaderboard.length > 0 && (
+                <div className="absolute right-2 sm:right-3 md:right-4 top-1/2 -translate-y-1/2 z-10 flex items-center select-none">
+                  <motion.div
+                    animate={
+                      isCountPulsing
+                        ? {
+                            scale: [1, 1.18, 0.94, 1.06, 1],
+                            boxShadow: [
+                              '0 2px 8px rgba(217,119,6,0.35)',
+                              '0 0 16px rgba(250,204,21,0.9), 0 2px 8px rgba(217,119,6,0.6)',
+                              '0 2px 8px rgba(217,119,6,0.35)',
+                            ],
+                          }
+                        : { scale: 1 }
+                    }
+                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                    className="relative flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 sm:px-3 md:px-3.5 py-0.5 sm:py-1 md:py-1.5 rounded-full bg-gradient-to-b from-yellow-300 via-amber-300 to-amber-400 border-[1.5px] sm:border-2 border-white shadow-[0_2px_8px_rgba(217,119,6,0.35),0_1.5px_0_rgba(180,83,9,1)] overflow-hidden"
+                  >
+                    {/* Efek glossy kilau kaca atas */}
+                    <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/50 to-transparent pointer-events-none rounded-t-full" />
+
+                    {/* Emoji Bayi dengan animasi ayun lucu */}
+                    <motion.span
+                      animate={{ rotate: [-6, 6, -6], scale: [1, 1.08, 1] }}
+                      transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                      className="text-xs sm:text-sm md:text-base inline-block drop-shadow-xs"
+                    >
+                      👶
+                    </motion.span>
+
+                    {/* Label REMAINING */}
+                    <span className="font-display font-black text-[9px] sm:text-[11px] md:text-xs text-amber-950/85 tracking-wider uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.7)]">
+                      REMAINING:
+                    </span>
+
+                    {/* Angka dengan animasi roll/pop vertikal saat berubah */}
+                    <div className="relative inline-flex items-center justify-center min-w-[1.4ch] h-[16px] sm:h-[18px] md:h-[22px]">
+                      <AnimatePresence mode="popLayout" initial={false}>
+                        <motion.span
+                          key={remainingCount}
+                          initial={{ y: -14, opacity: 0, scale: 0.5 }}
+                          animate={{ y: 0, opacity: 1, scale: 1 }}
+                          exit={{ y: 14, opacity: 0, scale: 0.5 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+                          className="font-display font-black text-[11px] sm:text-xs md:text-sm lg:text-base text-amber-950 leading-none drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]"
+                        >
+                          {remainingCount}
+                        </motion.span>
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
