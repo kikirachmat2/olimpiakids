@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Trophy,
   UserX,
+  Settings,
 } from 'lucide-react'
 import { DEFAULT_MATCHES, WasitMatch, WasitParticipant } from '@/lib/wasitDefaults'
 
@@ -55,6 +56,8 @@ export default function WasitPage() {
     fromMatchId: number
   } | null>(null)
   const [targetMatchId, setTargetMatchId] = useState<number>(1)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [customWebhookUrl, setCustomWebhookUrl] = useState('')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -91,6 +94,11 @@ export default function WasitPage() {
       } catch (e) {
         console.error(e)
       }
+    }
+
+    const savedWebhook = localStorage.getItem('olimpiakids_apps_script_url')
+    if (savedWebhook) {
+      setCustomWebhookUrl(savedWebhook)
     }
 
     return () => {
@@ -301,6 +309,7 @@ export default function WasitPage() {
             status: p.status || 'finished',
           })),
           refereePin: userRole === 'supervisor' ? '9999' : '1234',
+          webhookUrl: customWebhookUrl || undefined,
         }),
       })
 
@@ -450,6 +459,17 @@ export default function WasitPage() {
               title="Tarik data terbaru dari Google Sheets"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMatches ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-xl border border-slate-700 text-slate-300 text-xs flex items-center gap-1 transition-all relative"
+              title="Pengaturan Webhook Google Sheets"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              {customWebhookUrl && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-1 right-1" />
+              )}
             </button>
 
             <button
@@ -937,6 +957,79 @@ export default function WasitPage() {
                   className="flex-1 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-amber-950 font-black text-xs shadow-md"
                 >
                   Konfirmasi Pindah
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ===================================================================== */}
+      {/* 8.5. MODAL SETTINGS WEBHOOK GOOGLE SHEETS */}
+      {/* ===================================================================== */}
+      <AnimatePresence>
+        {showSettingsModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-3xl p-5 shadow-2xl"
+            >
+              <div className="w-12 h-12 bg-yellow-400/20 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Settings className="w-6 h-6" />
+              </div>
+              <h3 className="font-display font-black text-lg text-white uppercase text-center">
+                Pengaturan Google Sheets
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 mb-4 text-center">
+                Hubungkan tombol Kunci Final langsung ke spreadsheet Anda secara realtime.
+              </p>
+
+              <div className="space-y-3 mb-4 text-left">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                    URL WEB APP APPS SCRIPT:
+                  </label>
+                  <input
+                    type="url"
+                    value={customWebhookUrl}
+                    onChange={(e) => setCustomWebhookUrl(e.target.value)}
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+
+                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/60 text-[11px] text-slate-400 space-y-1">
+                  <p className="font-bold text-yellow-400">💡 Cara Pasang Web App (Cukup Sekali):</p>
+                  <p>1. Di Google Sheet, klik menu <b>Extensions → Apps Script</b>.</p>
+                  <p>2. Paste isi kode <b>Code.gs</b> lalu klik <b>Deploy → New Deployment</b>.</p>
+                  <p>3. Pilih tipe <b>Web app</b> (Who has access: <b>Anyone</b>) lalu copy URL yang didapat ke kotak di atas.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-xs"
+                >
+                  Tutup
+                </button>
+                <button
+                  onClick={() => {
+                    const cleaned = customWebhookUrl.trim()
+                    if (cleaned) {
+                      localStorage.setItem('olimpiakids_apps_script_url', cleaned)
+                      showToast('URL Webhook berhasil disimpan!', 'success')
+                    } else {
+                      localStorage.removeItem('olimpiakids_apps_script_url')
+                      showToast('URL Webhook dikosongkan (menggunakan env default).', 'info')
+                    }
+                    setShowSettingsModal(false)
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-amber-950 font-black text-xs shadow-md"
+                >
+                  Simpan URL
                 </button>
               </div>
             </motion.div>

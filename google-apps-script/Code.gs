@@ -346,10 +346,13 @@ function doPost(e) {
       var results = payload.results || [];
       var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-      // Target penulisan urutan: tab WASIT 1 dan MASTER DATABASE
+      // Target penulisan urutan: tab WASIT 1, MASTER DATABASE, dan MASTER WASIT
       var targetSheets = [
         ss.getSheetByName('WASIT 1'),
-        ss.getSheetByName('MASTER DATABASE')
+        ss.getSheetByName('MASTER DATABASE'),
+        ss.getSheetByName('MASTER WASIT'),
+        ss.getSheetByName('WASIT 2'),
+        ss.getSheetByName('WASIT 3')
       ].filter(Boolean);
 
       if (targetSheets.length === 0) {
@@ -368,25 +371,39 @@ function doPost(e) {
 
       var totalUpdated = 0;
       targetSheets.forEach(function(sh) {
+        var sheetName = sh.getName();
         var data = sh.getDataRange().getValues();
-        // Cari posisi kolom NOMOR DADA dan URUTAN
-        var colBib = 1;      // Default kolom B
-        var colUrutan = 3;   // Default kolom D (WASIT 1) atau E (MASTER DATABASE)
-        
-        // Scan baris 1-3 untuk menemukan header
+        var colBib = 1; // Default kolom B (NOMOR DADA)
+        var colsToUpdate = []; // Kolom-kolom yang akan diisi nilai urutan
+
+        // Scan baris 1-4 untuk menemukan header
         for (var r = 0; r < Math.min(data.length, 4); r++) {
           for (var c = 0; c < data[r].length; c++) {
             var header = String(data[r][c]).trim().toUpperCase();
             if (header.indexOf('NOMOR') !== -1 || header.indexOf('BIB') !== -1) colBib = c;
-            if (header === 'URUTAN') colUrutan = c;
+            if (header === 'URUTAN') {
+              if (colsToUpdate.indexOf(c) === -1) colsToUpdate.push(c);
+            }
+            if (sheetName === 'MASTER WASIT') {
+              if (header === 'WASIT 1' || header === 'WASIT 2' || header === 'WASIT 3' || header === 'VALID') {
+                if (colsToUpdate.indexOf(c) === -1) colsToUpdate.push(c);
+              }
+            }
           }
+        }
+
+        // Fallback jika tidak terdeteksi
+        if (colsToUpdate.length === 0) {
+          colsToUpdate = [3]; // Default kolom D
         }
 
         // Tulis nilai urutan
         for (var i = 0; i < data.length; i++) {
           var bibInRow = String(data[i][colBib]).trim().toUpperCase();
           if (resultMap[bibInRow] !== undefined) {
-            sh.getRange(i + 1, colUrutan + 1).setValue(resultMap[bibInRow]);
+            for (var k = 0; k < colsToUpdate.length; k++) {
+              sh.getRange(i + 1, colsToUpdate[k] + 1).setValue(resultMap[bibInRow]);
+            }
             totalUpdated++;
           }
         }

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { matchId, matchTitle, results, refereePin } = body
+    const { matchId, matchTitle, results, refereePin, webhookUrl } = body
 
     if (!matchId || !results || !Array.isArray(results)) {
       return NextResponse.json(
@@ -20,8 +20,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // 1. Forward ke Google Apps Script Web App (jika URL sudah dipasang di env)
-    const scriptWebhookUrl = process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL
+    // 1. Forward ke Google Apps Script Web App (dari custom settings atau env)
+    const scriptWebhookUrl = (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://script.google.com/')) 
+      ? webhookUrl 
+      : process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL
     let webhookStatus = 'skipped'
 
     if (scriptWebhookUrl) {
