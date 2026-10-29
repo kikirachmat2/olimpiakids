@@ -322,119 +322,111 @@ export default function LiveLeaderboard() {
         </div>
       </motion.div>
 
-      {/* 2. HEADER TITLE PILL: LEBAR LEBIH LUAS DI TV, SELARAS DENGAN CONTAINER TABEL */}
-      {/* 2. HEADER TITLE PILL: MENGELUARKAN RUNNING HEADLINE SELEBRASI SAAT JUARA / TOP 3 */}
-      <div className="w-full mb-1 sm:mb-2 shrink-0">
-        <AnimatePresence mode="wait">
-          {activeToast ? (
-            <motion.div
-              key="toast-active"
-              initial={{ opacity: 0, scale: 0.95, y: -6 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 6 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              className={`w-full rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-xl text-center relative overflow-hidden select-none ${
-                activeToast.type === 'champion'
-                  ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 shadow-[0_8px_25px_rgba(234,179,8,0.7)] ring-4 ring-yellow-300/90'
-                  : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-[0_8px_25px_rgba(37,99,235,0.7)] ring-4 ring-blue-300/90'
-              }`}
-            >
-              {/* Shimmer sweep */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]" />
+      {/* 2. HEADER TITLE & REMAINING BAR (PROPORSIONAL 3/4 & 1/4) */}
+      <div className="w-full grid grid-cols-4 gap-1.5 sm:gap-2.5 md:gap-3 mb-1 sm:mb-2 shrink-0">
+        {/* 3/4 BAGIAN: JUDUL LOMBA ATAU TOAST SELEBRASI */}
+        <div className="col-span-3 min-w-0">
+          <AnimatePresence mode="wait">
+            {activeToast ? (
+              <motion.div
+                key="toast-active"
+                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 6 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className={`w-full rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-2 sm:px-4 md:px-6 border-[2.5px] sm:border-[3.5px] border-white shadow-xl text-center relative overflow-hidden select-none ${
+                  activeToast.type === 'champion'
+                    ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 shadow-[0_8px_25px_rgba(234,179,8,0.7)] ring-4 ring-yellow-300/90'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-[0_8px_25px_rgba(37,99,235,0.7)] ring-4 ring-blue-300/90'
+                }`}
+              >
+                {/* Shimmer sweep */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]" />
 
-              <div className="font-display font-black text-xs sm:text-base md:text-lg lg:text-xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-2 sm:gap-3">
-                <span className="text-base sm:text-2xl animate-bounce">
-                  {activeToast.type === 'champion' ? '👑' : '🎉'}
-                </span>
-                <span className="truncate">
-                  <span className="font-black tracking-wider">{activeToast.title}</span>
-                  <span className="mx-2 opacity-60">•</span>
-                  <span className="font-bold opacity-90">{activeToast.subtitle}</span>
-                </span>
-                <span className="text-base sm:text-2xl animate-bounce">
-                  {activeToast.type === 'champion' ? '👑' : '⭐'}
-                </span>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="default-title"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-3 sm:px-6 md:px-8 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden flex items-center justify-center"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite] pointer-events-none" />
-              
-              {/* Judul Utama Lomba (Center) */}
-              <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 px-10 sm:px-24 md:px-36">
-                <span>🍼</span>
-                <span className="truncate">
-                  {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
-                    ? activeRace.name
-                    : activeRace?.name || 'LEADERBOARD BABY CRAWLING'}
-                </span>
-                <span>⭐</span>
-              </h1>
-
-              {/* Grafis Sisa Bayi Belum Tanding (Ujung Kanan Bar Biru) */}
-              {leaderboard.length > 0 && (
-                <div className="absolute right-2 sm:right-3 md:right-4 top-1/2 -translate-y-1/2 z-10 flex items-center select-none">
-                  <motion.div
-                    animate={
-                      isCountPulsing
-                        ? {
-                            scale: [1, 1.18, 0.94, 1.06, 1],
-                            boxShadow: [
-                              '0 2px 8px rgba(217,119,6,0.35)',
-                              '0 0 16px rgba(250,204,21,0.9), 0 2px 8px rgba(217,119,6,0.6)',
-                              '0 2px 8px rgba(217,119,6,0.35)',
-                            ],
-                          }
-                        : { scale: 1 }
-                    }
-                    transition={{ duration: 0.6, ease: 'easeOut' }}
-                    className="relative flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 sm:px-3 md:px-3.5 py-0.5 sm:py-1 md:py-1.5 rounded-full bg-gradient-to-b from-yellow-300 via-amber-300 to-amber-400 border-[1.5px] sm:border-2 border-white shadow-[0_2px_8px_rgba(217,119,6,0.35),0_1.5px_0_rgba(180,83,9,1)] overflow-hidden"
-                  >
-                    {/* Efek glossy kilau kaca atas */}
-                    <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/50 to-transparent pointer-events-none rounded-t-full" />
-
-                    {/* Emoji Bayi dengan animasi ayun lucu */}
-                    <motion.span
-                      animate={{ rotate: [-6, 6, -6], scale: [1, 1.08, 1] }}
-                      transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
-                      className="text-xs sm:text-sm md:text-base inline-block drop-shadow-xs"
-                    >
-                      👶
-                    </motion.span>
-
-                    {/* Label REMAINING */}
-                    <span className="font-display font-black text-[9px] sm:text-[11px] md:text-xs text-amber-950/85 tracking-wider uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.7)]">
-                      REMAINING:
-                    </span>
-
-                    {/* Angka dengan animasi roll/pop vertikal saat berubah */}
-                    <div className="relative inline-flex items-center justify-center min-w-[1.4ch] h-[16px] sm:h-[18px] md:h-[22px]">
-                      <AnimatePresence mode="popLayout" initial={false}>
-                        <motion.span
-                          key={remainingCount}
-                          initial={{ y: -14, opacity: 0, scale: 0.5 }}
-                          animate={{ y: 0, opacity: 1, scale: 1 }}
-                          exit={{ y: 14, opacity: 0, scale: 0.5 }}
-                          transition={{ type: 'spring', stiffness: 500, damping: 26 }}
-                          className="font-display font-black text-[11px] sm:text-xs md:text-sm lg:text-base text-amber-950 leading-none drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]"
-                        >
-                          {remainingCount}
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
-                  </motion.div>
+                <div className="font-display font-black text-xs sm:text-base md:text-lg lg:text-xl xl:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2">
+                  <span className="text-base sm:text-2xl animate-bounce shrink-0">
+                    {activeToast.type === 'champion' ? '👑' : '🎉'}
+                  </span>
+                  <span className="truncate">
+                    <span className="font-black tracking-wider">{activeToast.title}</span>
+                    <span className="mx-1.5 sm:mx-2 opacity-60">•</span>
+                    <span className="font-bold opacity-90">{activeToast.subtitle}</span>
+                  </span>
+                  <span className="text-base sm:text-2xl animate-bounce shrink-0">
+                    {activeToast.type === 'champion' ? '👑' : '⭐'}
+                  </span>
                 </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="default-title"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-2 sm:px-4 md:px-6 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden flex items-center justify-center min-w-0"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite] pointer-events-none" />
+                <h1 className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 truncate">
+                  <span>🍼</span>
+                  <span className="truncate">
+                    {activeRace?.name && activeRace.name.toLowerCase().includes('leaderboard')
+                      ? activeRace.name
+                      : activeRace?.name || 'LEADERBOARD BABY CRAWLING'}
+                  </span>
+                  <span>⭐</span>
+                </h1>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* 1/4 BAGIAN: BAR REMAINING (UKURAN FONT IDENTIK & BOLD) */}
+        <div className="col-span-1 min-w-0">
+          <motion.div
+            animate={
+              isCountPulsing
+                ? {
+                    scale: [1, 1.05, 0.97, 1.02, 1],
+                    boxShadow: [
+                      '0 3px 0 rgba(29,78,216,0.7)',
+                      '0 0 20px rgba(250,204,21,0.9), 0 3px 0 rgba(29,78,216,0.7)',
+                      '0 3px 0 rgba(29,78,216,0.7)',
+                    ],
+                  }
+                : { scale: 1 }
+            }
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700 text-white rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-1 sm:px-3 md:px-4 border-[2.5px] sm:border-[3.5px] border-white shadow-[0_3px_0_rgba(29,78,216,0.7)] text-center relative overflow-hidden flex items-center justify-center min-w-0 select-none"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_3s_infinite] pointer-events-none" />
+            <div className="font-display font-black text-xs sm:text-lg md:text-xl lg:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-1 sm:gap-2 truncate">
+              <motion.span
+                animate={{ rotate: [-6, 6, -6], scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+                className="inline-block shrink-0"
+              >
+                👶
+              </motion.span>
+              <span className="hidden md:inline">REMAINING:</span>
+              <span className="inline md:hidden">REM:</span>
+              <div className="relative inline-flex items-center justify-center min-w-[1.2ch] overflow-hidden shrink-0">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={remainingCount}
+                    initial={{ y: -16, opacity: 0, scale: 0.6 }}
+                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                    exit={{ y: 16, opacity: 0, scale: 0.6 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+                    className="text-yellow-300 font-black inline-block drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+                  >
+                    {remainingCount}
+                  </motion.span>
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
 
       {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - TAMPILKAN 10 BESAR SECARA PRESISI */}
