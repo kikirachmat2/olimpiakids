@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { DEFAULT_MATCHES, WasitMatch, WasitParticipant } from '@/lib/wasitDefaults'
 
-export const dynamic = 'force-dynamic'
-
 const SHEET_ID = '1A99yug1xh9N-1l3rEt6-RpYFZD5FpY-eJmFaXCwKpWI'
 const GID_WASIT = '1982418372' // Tab WASIT 1
 
