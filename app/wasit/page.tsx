@@ -84,6 +84,17 @@ export default function WasitPage() {
         const json = await res.json()
         if (json.matches && Array.isArray(json.matches)) {
           setMatches(json.matches)
+          // Inisialisasi matchStatuses dari data Google Sheets (jika peserta match sudah punya urutan)
+          setMatchStatuses((prev) => {
+            const next = { ...prev }
+            json.matches.forEach((m: WasitMatch) => {
+              const hasSheetUrutan = m.participants?.some((p) => p.urutan !== null && p.urutan !== undefined && String(p.urutan).trim() !== '')
+              if (hasSheetUrutan && !next[m.id]) {
+                next[m.id] = 'FINAL'
+              }
+            })
+            return next
+          })
         }
       }
     } catch {}
@@ -100,6 +111,9 @@ export default function WasitPage() {
           dnfList: s.dnfList || [],
         }
         setSession(safeSession)
+        if (s.matchStatuses) {
+          setMatchStatuses((prev) => ({ ...prev, ...s.matchStatuses }))
+        }
         if (s.matchId) {
           const idx = matches.findIndex((m) => m.id === s.matchId)
           if (idx !== -1) setCurrentMatchIdx(idx)
@@ -193,7 +207,7 @@ export default function WasitPage() {
     setParticipants(target.participants || [])
     setManualTimes({})
 
-    // Jika match ini belum aktif di session, set status LOCKED
+    // Jika match ini belum aktif di session, set status LOCKED (pertahankan matchStatuses)
     if (session.matchId !== target.id) {
       const newSession: ActiveMatchSession = {
         matchId: target.id,
@@ -204,6 +218,7 @@ export default function WasitPage() {
         elapsedMs: 0,
         startTime: null,
         dnfList: [],
+        matchStatuses,
         updatedAt: new Date().toISOString(),
       }
       setSession(newSession)
@@ -218,6 +233,7 @@ export default function WasitPage() {
   // BUKA GEMBOK MATCH (WASIT ADALAH MASTER)
   // =========================================================================
   const handleUnlockMatch = async () => {
+    const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'UNLOCKED' as const }
     const updated: ActiveMatchSession = {
       ...session,
       matchId: currentMatch.id,
@@ -227,23 +243,26 @@ export default function WasitPage() {
       splits: [],
       elapsedMs: 0,
       startTime: null,
+      matchStatuses: nextStatuses,
       updatedAt: new Date().toISOString(),
     }
     setSession(updated)
-    setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'UNLOCKED' }))
+    setMatchStatuses(nextStatuses)
     await saveActiveSession(updated)
     broadcastSessionEvent({ action: 'UNLOCK_MATCH', session: updated })
     showToast('success', `🔓 Gembok ${currentMatch.title} berhasil DIBUKA! Meja Timer & Plasma kini aktif.`)
   }
 
   const handleLockMatchBack = async () => {
+    const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'LOCKED' as const }
     const updated: ActiveMatchSession = {
       ...session,
       status: 'LOCKED',
+      matchStatuses: nextStatuses,
       updatedAt: new Date().toISOString(),
     }
     setSession(updated)
-    setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'LOCKED' }))
+    setMatchStatuses(nextStatuses)
     await saveActiveSession(updated)
     broadcastSessionEvent({ action: 'LOCK_MATCH', session: updated })
     showToast('success', `🔒 ${currentMatch.title} dikembalikan ke status TERGEMBOK.`)
@@ -366,6 +385,7 @@ export default function WasitPage() {
       }
 
       // Update state lokal & session
+      const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'FINAL' as const }
       const lockedSession: ActiveMatchSession = {
         ...session,
         status: 'LOCKED_FINAL',
@@ -379,11 +399,12 @@ export default function WasitPage() {
             elapsedMs: session.splits[i]?.elapsedMs || 0,
             manualEdited: !!manualTimes[r.bib_number],
           })),
+        matchStatuses: nextStatuses,
         updatedAt: new Date().toISOString(),
         lockedAt: new Date().toISOString(),
       }
       setSession(lockedSession)
-      setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'FINAL' }))
+      setMatchStatuses(nextStatuses)
       broadcastSessionEvent({ action: 'LOCK_FINAL', session: lockedSession })
 
       showToast('success', `🎉 ${currentMatch.title} BERHASIL DIKUNCI! Data menyatu di Plasma & Leaderboard.`)
@@ -466,9 +487,15 @@ export default function WasitPage() {
   // =========================================================================
   // PINDAH PESERTA (MAKS 10 PER MATCH)
   // =========================================================================
-  const openMoveModal = (p: WasitParticipant) => {
-    setSelectedChildToMove({ matchId: currentMatch.id, participant: p })
-    setTargetMatchId(currentMatch.id === 12 ? 1 : currentMatch.id + 1)
+  const [sourceMoveMatchId, setSourceMoveMatchId] = useState<number>(1)
+
+  const openMoveModal = (p?: WasitParticipant, fromMatchId?: number) => {
+    const srcId = fromMatchId || currentMatch?.id || 1
+    const srcMatch = matches.find((m) => m.id === srcId) || currentMatch || matches[0]
+    const firstChild = p || srcMatch?.participants?.[0] || null
+    setSourceMoveMatchId(srcId)
+    setSelectedChildToMove(firstChild ? { matchId: srcId, participant: firstChild } : null)
+    setTargetMatchId(srcId === 12 ? 1 : srcId + 1)
     setMoveError('')
     setIsMoveModalOpen(true)
   }
@@ -597,15 +624,22 @@ export default function WasitPage() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  setSelectedChildToMove(null)
-                  setIsMoveModalOpen(true)
-                }}
+                onClick={() => openMoveModal(undefined, currentMatch?.id || 1)}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 shadow-sm"
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>Atur Peserta</span>
               </button>
+
+              {isSupervisor && (
+                <button
+                  onClick={() => setEmergencyModal('RESET_DB')}
+                  className="p-2 bg-slate-800 hover:bg-red-500/20 text-red-400 rounded-xl border border-slate-700"
+                  title="Reset Seluruh Database"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                </button>
+              )}
 
               <button
                 onClick={() => setIsAuthenticated(false)}
@@ -702,6 +736,195 @@ export default function WasitPage() {
             })}
           </div>
         </main>
+
+        {/* MODAL: PINDAH PESERTA DI MATCH LIST VIEW */}
+        <AnimatePresence>
+          {isMoveModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="font-display font-black text-base text-white uppercase flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-400" />
+                    <span>Pindahkan Peserta Antar Match</span>
+                  </h3>
+                  <button
+                    onClick={() => setIsMoveModalOpen(false)}
+                    className="text-slate-400 hover:text-white text-sm"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Pilih Match Asal */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Pilih Match Asal:</label>
+                  <select
+                    value={sourceMoveMatchId}
+                    onChange={(e) => {
+                      const mId = Number(e.target.value)
+                      setSourceMoveMatchId(mId)
+                      const mObj = matches.find((item) => item.id === mId)
+                      const firstP = mObj?.participants?.[0] || null
+                      setSelectedChildToMove(firstP ? { matchId: mId, participant: firstP } : null)
+                      if (targetMatchId === mId) {
+                        setTargetMatchId(mId === 12 ? 1 : mId + 1)
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                  >
+                    {matches.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.title} ({m.participants?.length || 0} peserta)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Pilih Anak yang Mau Dipindah */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Pilih Peserta:</label>
+                  <select
+                    value={selectedChildToMove?.participant.bib_number || ''}
+                    onChange={(e) => {
+                      const bib = e.target.value
+                      const srcM = matches.find((item) => item.id === sourceMoveMatchId)
+                      const p = (srcM?.participants || []).find((item) => item.bib_number === bib)
+                      if (p) setSelectedChildToMove({ matchId: sourceMoveMatchId, participant: p })
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                  >
+                    {(matches.find((item) => item.id === sourceMoveMatchId)?.participants || []).map((p) => (
+                      <option key={p.bib_number} value={p.bib_number}>
+                        {p.bib_number} - {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Pilih Match Tujuan */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Pindah ke Match Tujuan:</label>
+                  <select
+                    value={targetMatchId}
+                    onChange={(e) => setTargetMatchId(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                  >
+                    {matches.map((m) => {
+                      const count = m.participants ? m.participants.length : 0
+                      const isFull = count >= 10
+                      return (
+                        <option key={m.id} value={m.id} disabled={m.id === sourceMoveMatchId}>
+                          {m.title} ({count}/10 peserta) {isFull ? '— PENUH' : ''}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+
+                {moveError && (
+                  <div className="p-2.5 bg-red-950/40 border border-red-500/40 text-red-300 rounded-xl text-xs font-bold">
+                    {moveError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setIsMoveModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleConfirmMove}
+                    className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-md"
+                  >
+                    Konfirmasi Pindah
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL: EMERGENCY RESET DB DI MATCH LIST VIEW */}
+        <AnimatePresence>
+          {emergencyModal && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4"
+              >
+                <div className="text-center space-y-1">
+                  <div className="w-12 h-12 bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                    <ShieldAlert className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-display font-black text-base text-white uppercase">
+                    Reset Seluruh Database
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Aksi sensitif ini membutuhkan otorisasi Master PIN Supervisor (9999).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-red-400 mb-1 block">
+                    Ketik &quot;RESET&quot; untuk konfirmasi:
+                  </label>
+                  <input
+                    type="text"
+                    value={resetConfirmText}
+                    onChange={(e) => setResetConfirmText(e.target.value)}
+                    placeholder="RESET"
+                    className="w-full bg-slate-950 border border-red-500/50 rounded-xl px-3 py-2 text-center text-sm font-black text-red-300"
+                  />
+                </div>
+
+                <div>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={emergencyPin}
+                    onChange={(e) => setEmergencyPin(e.target.value)}
+                    placeholder="Master PIN (4 Digit)"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-center text-lg font-black tracking-widest text-white"
+                    autoFocus
+                  />
+                </div>
+
+                {emergencyError && (
+                  <p className="text-xs font-bold text-red-400 text-center">{emergencyError}</p>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setEmergencyModal(null)
+                      setEmergencyPin('')
+                      setEmergencyError('')
+                    }}
+                    className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={executeEmergencyAction}
+                    className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black shadow-lg"
+                  >
+                    Eksekusi
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Global Toast */}
         <AnimatePresence>

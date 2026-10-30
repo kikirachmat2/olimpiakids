@@ -3,6 +3,7 @@ import { WasitMatch, WasitParticipant, DEFAULT_MATCHES } from './wasitDefaults'
 
 export const SESSION_EVENT_ID = 999
 export const MATCHES_STORE_EVENT_ID = 998
+export const DNF_STORE_EVENT_ID = 997
 
 export type MatchLockStatus = 
   | 'LOCKED'            // Match baru dipilih / belum dibuka. Timer kosong & disabled. Plasma stay di match sebelumnya.
@@ -21,6 +22,7 @@ export interface ActiveMatchSession {
   elapsedMs: number
   startTime: number | null
   dnfList: string[]
+  matchStatuses?: Record<number, 'LOCKED' | 'UNLOCKED' | 'FINAL'>
   updatedAt: string
   lockedAt?: string
 }
@@ -135,4 +137,44 @@ export async function getMatchesStore(): Promise<WasitMatch[] | null> {
     console.warn('Gagal muat matches store:', err)
   }
   return null
+}
+
+/**
+ * Muat daftar global nomor dada (BIB) yang berstatus DNF secara persisten
+ * (Kebal terhadap overwrite dari Google Apps Script versi lama)
+ */
+export async function getGlobalDnfBibs(): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('race_events')
+      .select('name')
+      .eq('id', DNF_STORE_EVENT_ID)
+      .maybeSingle()
+
+    if (!error && data?.name) {
+      const parsed = JSON.parse(data.name)
+      if (Array.isArray(parsed?.dnfBibs)) {
+        return parsed.dnfBibs as string[]
+      }
+    }
+  } catch {}
+  return []
+}
+
+/**
+ * Simpan daftar global nomor dada (BIB) yang berstatus DNF
+ */
+export async function saveGlobalDnfBibs(dnfBibs: string[]): Promise<boolean> {
+  try {
+    const cleanUnique = Array.from(new Set(dnfBibs.map((b) => String(b).trim().toUpperCase()).filter(Boolean)))
+    const { error } = await supabase.from('race_events').upsert({
+      id: DNF_STORE_EVENT_ID,
+      name: JSON.stringify({ dnfBibs: cleanUnique, updatedAt: new Date().toISOString() }),
+      status: 'idle',
+      start_time: new Date().toISOString(),
+    })
+    return !error
+  } catch {
+    return false
+  }
 }

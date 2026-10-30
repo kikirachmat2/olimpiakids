@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { saveActiveSession, ActiveMatchSession } from '@/lib/sessionStore'
+import {
+  saveActiveSession,
+  getActiveSession,
+  ActiveMatchSession,
+  getGlobalDnfBibs,
+  saveGlobalDnfBibs,
+} from '@/lib/sessionStore'
 
 const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzW7iHQryhHG5Qw7-m3Kx-OGZ1RcykxdzCeQJIRE3slHSm-dirgVWSj5P_7WZQRJT0QCA/exec'
 
@@ -76,6 +82,60 @@ function parseTimerToMs(raw: string | null | undefined): number | null {
   return result === null || isNaN(result) ? null : result
 }
 
+/**
+ * Helper untuk meng-update tabel race_results di Supabase (Event ID = 2)
+ */
+async function syncResultsToSupabase(
+  results: Array<{ position: number; bib_number: string; name: string; status: string; timer: string }>,
+  nowIso: string
+) {
+  try {
+    for (const item of results) {
+      const cleanBib = String(item.bib_number || '').trim().toUpperCase()
+      if (!cleanBib) continue
+
+      const isDnf = item.status === 'dnf' || item.timer === 'DNF' || item.position === 9999
+      const durationMs = isDnf ? null : parseTimerToMs(item.timer)
+
+      const { data: partRow } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('bib_number', cleanBib)
+        .maybeSingle()
+
+      if (partRow) {
+        const { data: existingRes } = await supabase
+          .from('race_results')
+          .select('id')
+          .eq('race_event_id', 2)
+          .eq('participant_id', partRow.id)
+          .maybeSingle()
+
+        if (existingRes) {
+          await supabase
+            .from('race_results')
+            .update({
+              duration_ms: durationMs,
+              finish_time: isDnf ? 'DNF' : item.timer || nowIso,
+              status: isDnf ? 'disqualified' : 'finished',
+            })
+            .eq('id', existingRes.id)
+        } else {
+          await supabase.from('race_results').insert({
+            race_event_id: 2,
+            participant_id: partRow.id,
+            duration_ms: durationMs,
+            finish_time: isDnf ? 'DNF' : item.timer || nowIso,
+            status: isDnf ? 'disqualified' : 'finished',
+          })
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Direct Supabase race_results sync warning:', err)
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -103,6 +163,8 @@ export async function POST(request: Request) {
           body: JSON.stringify({ action: 'RESET_DATABASE' }),
         }).catch(() => {})
       }
+      // Bersihkan daftar DNF global
+      await saveGlobalDnfBibs([])
       // Reset juga race_results di Supabase agar Leaderboard kembali bersih
       await supabase
         .from('race_results')
@@ -120,6 +182,9 @@ export async function POST(request: Request) {
 
     // B. RESET MATCH ACTION
     if (action === 'RESET_MATCH') {
+      const prevSession = await getActiveSession().catch(() => null)
+      const nextMatchStatuses = { ...(prevSession?.matchStatuses || {}), [matchId]: 'LOCKED' as const }
+
       const resetSession: ActiveMatchSession = {
         matchId,
         matchTitle: matchTitle || `MATCH ${matchId}`,
@@ -134,13 +199,19 @@ export async function POST(request: Request) {
         elapsedMs: 0,
         startTime: null,
         dnfList: [],
+        matchStatuses: nextMatchStatuses,
         updatedAt: new Date().toISOString(),
       }
       await saveActiveSession(resetSession)
 
-      // Kosongkan catatan waktu anak-anak di match ini pada Supabase race_results
       const bibs = results.map((r: any) => String(r.bib_number || '').trim().toUpperCase()).filter(Boolean)
       if (bibs.length > 0) {
+        // Hapus bib match ini dari Global DNF Store
+        const currentGlobalDnf = await getGlobalDnfBibs()
+        const filteredDnf = currentGlobalDnf.filter((b) => !bibs.includes(b.toUpperCase()))
+        await saveGlobalDnfBibs(filteredDnf)
+
+        // Kosongkan catatan waktu anak-anak di match ini pada Supabase race_results
         const { data: partRows } = await supabase
           .from('participants')
           .select('id')
@@ -162,7 +233,6 @@ export async function POST(request: Request) {
     const nowIso = new Date().toISOString()
 
     // 1. Bangun daftar split resmi berdasarkan urutan finisher (non-DNF)
-    // Ini memastikan koreksi manual waktu Wasit juga ikut tercatat akurat di tab TIMER
     const nonDnfResults = results.filter((r: any) => r.status !== 'dnf' && r.position !== 9999)
     const effectiveSplits = nonDnfResults.map((r: any, idx: number) => {
       const tStr = r.timer && r.timer !== '--.--.--' ? r.timer : splits?.[idx]?.timer || ''
@@ -174,8 +244,24 @@ export async function POST(request: Request) {
       }
     })
 
-    // 2. Update Match Session di Supabase menjadi LOCKED_FINAL
-    // Ini langsung memicu tampilan Plasma bertransformasi menampilkan hasil akhir
+    // 2. Perbarui Global DNF Store (Kebal terhadap overwrite RPC Apps Script lama)
+    const matchAllBibs = results.map((r: any) => String(r.bib_number || '').trim().toUpperCase()).filter(Boolean)
+    const matchDnfBibs = results
+      .filter((r: any) => r.status === 'dnf' || r.timer === 'DNF' || r.position === 9999)
+      .map((r: any) => String(r.bib_number || '').trim().toUpperCase())
+      .filter(Boolean)
+
+    const existingGlobalDnf = await getGlobalDnfBibs()
+    const updatedGlobalDnf = [
+      ...existingGlobalDnf.filter((b) => !matchAllBibs.includes(b.toUpperCase())),
+      ...matchDnfBibs,
+    ]
+    await saveGlobalDnfBibs(updatedGlobalDnf)
+
+    // 3. Update Match Session di Supabase menjadi LOCKED_FINAL (beserta matchStatuses persisten)
+    const prevSession = await getActiveSession().catch(() => null)
+    const nextMatchStatuses = { ...(prevSession?.matchStatuses || {}), [matchId]: 'FINAL' as const }
+
     const finalSession: ActiveMatchSession = {
       matchId,
       matchTitle: matchTitle || `MATCH ${matchId}`,
@@ -185,93 +271,25 @@ export async function POST(request: Request) {
       splits: effectiveSplits,
       elapsedMs: effectiveSplits.length > 0 ? effectiveSplits[effectiveSplits.length - 1].elapsedMs : 0,
       startTime: null,
-      dnfList: results.filter((r: any) => r.status === 'dnf').map((r: any) => r.bib_number),
+      dnfList: matchDnfBibs,
+      matchStatuses: nextMatchStatuses,
       updatedAt: nowIso,
       lockedAt: nowIso,
     }
     await saveActiveSession(finalSession)
 
-    // 3. UPDATE LANGSUNG KE SUPABASE `race_results` (Event ID = 2)
-    // Menjamin Leaderboard TV selalu terupdate 100% secara instan meskipun Google Sheets lambat
-    try {
-      for (const item of results) {
-        const cleanBib = String(item.bib_number || '').trim().toUpperCase()
-        if (!cleanBib) continue
+    // 4. UPDATE LANGSUNG KE SUPABASE `race_results` (SEBELUM WEBHOOK)
+    await syncResultsToSupabase(results, nowIso)
 
-        const isDnf = item.status === 'dnf' || item.timer === 'DNF' || item.position === 9999
-        const durationMs = isDnf ? null : parseTimerToMs(item.timer)
-
-        // Cari participant_id berdasarkan bib_number
-        const { data: partRow } = await supabase
-          .from('participants')
-          .select('id')
-          .eq('bib_number', cleanBib)
-          .maybeSingle()
-
-        if (partRow) {
-          const { data: existingRes } = await supabase
-            .from('race_results')
-            .select('id')
-            .eq('race_event_id', 2)
-            .eq('participant_id', partRow.id)
-            .maybeSingle()
-
-          if (existingRes) {
-            await supabase
-              .from('race_results')
-              .update({
-                duration_ms: durationMs,
-                finish_time: isDnf ? 'DNF' : item.timer || nowIso,
-                status: isDnf ? 'disqualified' : 'finished',
-              })
-              .eq('id', existingRes.id)
-          } else {
-            await supabase.from('race_results').insert({
-              race_event_id: 2,
-              participant_id: partRow.id,
-              duration_ms: durationMs,
-              finish_time: isDnf ? 'DNF' : item.timer || nowIso,
-              status: isDnf ? 'disqualified' : 'finished',
-            })
-          }
-        }
-      }
-    } catch (dbSyncErr) {
-      console.error('Direct Supabase race_results sync warning:', dbSyncErr)
-    }
-
-    // 4. FORWARD HASIL TERPADU KE GOOGLE APPS SCRIPT (TAB TIMER, WASIT, & MASTER DATABASE)
-    // Kompatibel 100% dengan Web App lama (SUBMIT_TIMER + SUBMIT_URUTAN) maupun baru (SUBMIT_KUNCI_MATCH)
+    // 5. FORWARD KE GOOGLE APPS SCRIPT (TAB TIMER, WASIT, & MASTER DATABASE)
     let webhookStatus = 'skipped'
     let webhookDetails: unknown = null
 
     if (scriptWebhookUrl) {
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          // Coba panggil SUBMIT_KUNCI_MATCH terlebih dahulu
-          const resKunci = await fetch(scriptWebhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'SUBMIT_KUNCI_MATCH',
-              matchId,
-              matchTitle,
-              results,
-              splits: effectiveSplits,
-              timestamp: nowIso,
-            }),
-          })
-
-          const jsonKunci = await resKunci.json().catch(() => null)
-
-          if (resKunci.ok && jsonKunci && jsonKunci.ok) {
-            webhookStatus = 'success'
-            webhookDetails = jsonKunci
-            break
-          }
-
-          // Fallback Otomatis: Jika Apps Script di Google Sheets masih versi sebelumnya ("Aksi tidak dikenal."),
-          // kirim berurutan SUBMIT_TIMER (ke tab TIMER) lalu SUBMIT_URUTAN (ke tab WASIT & MASTER DATABASE)
+          // Langsung gunakan kombinasi SUBMIT_TIMER + SUBMIT_URUTAN yang 100% didukung oleh
+          // semua versi Web App Google Apps Script tanpa membuang waktu round-trip gagal
           if (effectiveSplits.length > 0) {
             await fetch(scriptWebhookUrl, {
               method: 'POST',
@@ -299,7 +317,7 @@ export async function POST(request: Request) {
           })
 
           if (resUrutan.ok) {
-            webhookStatus = 'success_fallback'
+            webhookStatus = 'success'
             webhookDetails = await resUrutan.json().catch(() => ({ ok: true }))
             break
           }
@@ -311,6 +329,11 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    // 6. RE-ASSERT SUPABASE `race_results` SETELAH WEBHOOK APPS SCRIPT SELESAI!
+    // Ini memastikan jika RPC `sync_leaderboard_from_sheet` lama menimpa status DNF menjadi 'finished',
+    // status 'disqualified' dan finish_time 'DNF' langsung dikembalikan secara instan!
+    await syncResultsToSupabase(results, nowIso)
 
     return NextResponse.json({
       ok: true,

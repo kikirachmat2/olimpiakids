@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { getGlobalDnfBibs } from './sessionStore'
 import {
   Participant,
   RaceEvent,
@@ -367,13 +368,27 @@ export async function getLeaderboard(eventId: number): Promise<QueryResponse<Lea
     // Format data menjadi struktur LeaderboardItem yang rapi
     const rawList = ((data as unknown as LeaderboardRowQuery[]) || [])
 
+    // Ambil daftar global DNF dari session store (kebal overwrite Apps Script lama)
+    const globalDnfBibs = await getGlobalDnfBibs()
+    const dnfSet = new Set(globalDnfBibs.map((b) => b.toUpperCase()))
+
     // Urutkan:
     // 1. Yang sudah finish dengan catatan waktu tercepat di atas
     // 2. Yang belum bertanding (null)
     // 3. Yang DNF / Mogok / Disqualified SELALU DI PALING BAWAH
     rawList.sort((a, b) => {
-      const isDnfA = a.status === 'disqualified' || a.finish_time === 'DNF' || (a.status as string) === 'dnf'
-      const isDnfB = b.status === 'disqualified' || b.finish_time === 'DNF' || (b.status as string) === 'dnf'
+      const bibA = (a.participants?.bib_number || '').toUpperCase()
+      const bibB = (b.participants?.bib_number || '').toUpperCase()
+      const isDnfA =
+        dnfSet.has(bibA) ||
+        a.status === 'disqualified' ||
+        a.finish_time === 'DNF' ||
+        (a.status as string) === 'dnf'
+      const isDnfB =
+        dnfSet.has(bibB) ||
+        b.status === 'disqualified' ||
+        b.finish_time === 'DNF' ||
+        (b.status as string) === 'dnf'
       if (isDnfA && !isDnfB) return 1
       if (!isDnfA && isDnfB) return -1
       if (isDnfA && isDnfB) return 0
@@ -387,7 +402,12 @@ export async function getLeaderboard(eventId: number): Promise<QueryResponse<Lea
     })
 
     const leaderboard: LeaderboardItem[] = rawList.map((row, index: number) => {
-      const isDnf = row.status === 'disqualified' || row.finish_time === 'DNF' || (row.status as string) === 'dnf'
+      const bib = (row.participants?.bib_number || '-').toUpperCase()
+      const isDnf =
+        dnfSet.has(bib) ||
+        row.status === 'disqualified' ||
+        row.finish_time === 'DNF' ||
+        (row.status as string) === 'dnf'
       return {
         rank: index + 1,
         participant_id: row.participant_id,

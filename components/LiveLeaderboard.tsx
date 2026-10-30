@@ -33,11 +33,17 @@ export default function LiveLeaderboard() {
   const isMutedRef = React.useRef(isMuted)
   const leaderboardRef = React.useRef(leaderboard)
 
-  // Hitung jumlah sisa bayi yang belum tanding (skor/timer belum diinput / null)
+  // Hitung jumlah sisa bayi yang belum tanding (skor/timer belum diinput / null, DAN bukan DNF)
   const remainingCount = React.useMemo(() => {
-    return leaderboard.filter(
-      (item) => item.duration_ms === null || item.duration_ms === undefined
-    ).length
+    return leaderboard.filter((item) => {
+      const isDnf =
+        item.status === 'disqualified' ||
+        (item.status as string) === 'dnf' ||
+        item.finish_time === 'DNF' ||
+        item.finish_time === 'dnf'
+      if (isDnf) return false
+      return item.duration_ms === null || item.duration_ms === undefined
+    }).length
   }, [leaderboard])
 
   const [isCountPulsing, setIsCountPulsing] = useState(false)
@@ -202,11 +208,11 @@ export default function LiveLeaderboard() {
             return
           }
 
-          // B. Deteksi perubahan signifikan (ada hasil baru yang dicatat / waktu berubah)
-          const currentBoard = leaderboardRef.current
+          // B. Deteksi perubahan signifikan dibandingkan state yang sedang dipending atau yang sedang tampil
+          const baselineBoard = pendingDataRef.current || leaderboardRef.current
           let hasSignificantChange = false
           for (const item of nextData) {
-            const cur = currentBoard.find((c) => c.bib_number === item.bib_number)
+            const cur = baselineBoard.find((c) => c.bib_number === item.bib_number)
             const hadTime = cur && cur.duration_ms !== null && cur.duration_ms !== undefined
             const hasTime = item.duration_ms !== null && item.duration_ms !== undefined
             if ((!hadTime && hasTime) || (hadTime && hasTime && cur.duration_ms !== item.duration_ms)) {
@@ -221,7 +227,8 @@ export default function LiveLeaderboard() {
 
           if (hasSignificantChange) {
             pendingDataRef.current = nextData
-            // Mulai countdown 10 detik jika belum ada yang berjalan
+
+            // Mulai countdown 10 detik jika belum berjalan
             if (!countdownIntervalRef.current) {
               setSuspenseCountdown(10)
               let count = 10
