@@ -49,9 +49,9 @@ function autoSyncTrigger(e) {
   runSync_(false);
 }
 
-function runSync_(force) {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(25000)) {
+function runSync_(force, skipLock) {
+  var lock = skipLock ? null : LockService.getScriptLock();
+  if (lock && !lock.tryLock(15000)) {
     return { ok: false, message: '⏳ Sync lain sedang berjalan, coba lagi sebentar.' };
   }
   try {
@@ -90,7 +90,9 @@ function runSync_(force) {
     Logger.log('❌ Error: ' + err);
     return { ok: false, message: '❌ Error: ' + err };
   } finally {
-    lock.releaseLock();
+    if (lock) {
+      try { lock.releaseLock(); } catch(e) {}
+    }
   }
 }
 
@@ -410,8 +412,13 @@ function doPost(e) {
       });
 
       SpreadsheetApp.flush();
-      // Langsung picu sinkronisasi data ke Supabase & Leaderboard TV
-      var syncResult = runSync_(true);
+
+      // Lepaskan lock penulisan sheet sebelum sinkronisasi agar tidak terjadi deadlock
+      try { lock.releaseLock(); } catch(e) {}
+      lock = null;
+
+      // Langsung picu sinkronisasi data ke Supabase & Leaderboard TV (skipLock = true)
+      var syncResult = runSync_(true, true);
 
       return ContentService.createTextOutput(JSON.stringify({
         ok: true,
@@ -428,7 +435,9 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   } finally {
-    lock.releaseLock();
+    if (lock) {
+      try { lock.releaseLock(); } catch(e) {}
+    }
   }
 }
 

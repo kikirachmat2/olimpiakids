@@ -25,6 +25,20 @@ interface MatchState {
   lockedAt?: string
 }
 
+interface PendingSubmission {
+  matchId: number
+  matchTitle: string
+  results: Array<{
+    position: number
+    bib_number: string
+    name: string
+    status: string
+  }>
+  refereePin: string
+  webhookUrl?: string
+  timestamp: string
+}
+
 interface ParticipantCardProps {
   participant: WasitParticipant
   index: number
@@ -208,6 +222,7 @@ export default function WasitPage() {
   const [targetMatchId, setTargetMatchId] = useState<number>(1)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [customWebhookUrl, setCustomWebhookUrl] = useState('')
+  const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmission[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -215,10 +230,74 @@ export default function WasitPage() {
     setTimeout(() => setToast(null), 3500)
   }, [])
 
+  // Fungsi simpan antrean offline
+  const saveToPendingQueue = useCallback((payload: PendingSubmission) => {
+    try {
+      const raw = localStorage.getItem('olimpiakids_pending_submissions')
+      const queue: PendingSubmission[] = raw ? JSON.parse(raw) : []
+      // Hapus jika sudah ada matchId yang sama
+      const filtered = queue.filter((item) => item.matchId !== payload.matchId)
+      filtered.push(payload)
+      localStorage.setItem('olimpiakids_pending_submissions', JSON.stringify(filtered))
+      setPendingSubmissions(filtered)
+    } catch (e) {
+      console.error('Gagal menyimpan ke pending queue:', e)
+    }
+  }, [])
+
+  // Fungsi flush antrean offline ke server
+  const flushPendingQueue = useCallback(async () => {
+    const raw = localStorage.getItem('olimpiakids_pending_submissions')
+    if (!raw) return
+    let queue: PendingSubmission[] = []
+    try {
+      queue = JSON.parse(raw)
+    } catch {
+      return
+    }
+    if (!queue.length) return
+
+    const remaining: PendingSubmission[] = []
+    let successCount = 0
+
+    for (const item of queue) {
+      try {
+        const res = await fetch('/api/wasit/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item),
+        })
+        const data = await res.json()
+        if (data.ok) {
+          successCount++
+        } else {
+          remaining.push(item)
+        }
+      } catch {
+        remaining.push(item)
+      }
+    }
+
+    if (remaining.length > 0) {
+      localStorage.setItem('olimpiakids_pending_submissions', JSON.stringify(remaining))
+      setPendingSubmissions(remaining)
+    } else {
+      localStorage.removeItem('olimpiakids_pending_submissions')
+      setPendingSubmissions([])
+    }
+
+    if (successCount > 0) {
+      showToast(`✅ ${successCount} hasil match offline berhasil disinkronkan ke Sheets!`, 'success')
+    }
+  }, [showToast])
+
   // 4. CEK SESSION AUTH & STORAGE LOCAL
   useEffect(() => {
     setIsOnline(navigator.onLine)
-    const handleOnline = () => setIsOnline(true)
+    const handleOnline = () => {
+      setIsOnline(true)
+      flushPendingQueue()
+    }
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -253,11 +332,20 @@ export default function WasitPage() {
       setCustomWebhookUrl('https://script.google.com/macros/s/AKfycbzW7iHQryhHG5Qw7-m3Kx-OGZ1RcykxdzCeQJIRE3slHSm-dirgVWSj5P_7WZQRJT0QCA/exec')
     }
 
+    const rawQueue = localStorage.getItem('olimpiakids_pending_submissions')
+    if (rawQueue) {
+      try {
+        setPendingSubmissions(JSON.parse(rawQueue))
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
+  }, [flushPendingQueue])
 
   // 5. FETCH DATA MATCHES LIVE DARI API (SHEET)
   const loadMatchesFromApi = useCallback(async (isRefresh = false) => {
@@ -272,9 +360,15 @@ export default function WasitPage() {
         setMatchStates((prev) => {
           const next = { ...prev }
           data.matches.forEach((m: WasitMatch) => {
+            const allScoredInSheet = m.participants.length > 0 && m.participants.every(p => p.urutan !== null && p.urutan !== '')
             if (!next[m.id]) {
               next[m.id] = {
-                status: 'standby',
+                status: allScoredInSheet ? 'final' : 'standby',
+                participants: m.participants,
+              }
+            } else if (isRefresh && next[m.id].status === 'standby') {
+              next[m.id] = {
+                ...next[m.id],
                 participants: m.participants,
               }
             }
@@ -283,7 +377,10 @@ export default function WasitPage() {
           return next
         })
 
-        if (isRefresh) showToast('Data Match berhasil diperbarui dari Sheets!', 'success')
+        if (isRefresh) {
+          flushPendingQueue()
+          showToast('Data Match berhasil diperbarui dari Sheets!', 'success')
+        }
       }
     } catch (err) {
       console.error('Gagal memuat matches:', err)
@@ -291,7 +388,7 @@ export default function WasitPage() {
     } finally {
       setIsLoadingMatches(false)
     }
-  }, [showToast])
+  }, [showToast, flushPendingQueue])
 
   useEffect(() => {
     loadMatchesFromApi()
@@ -438,33 +535,38 @@ export default function WasitPage() {
     const matchObj = matches.find((m) => m.id === matchId)
     const state = matchStates[matchId] || { participants: [] }
 
+    const payload: PendingSubmission = {
+      matchId,
+      matchTitle: matchObj?.title || `MATCH ${matchId}`,
+      results: state.participants.map((p, idx) => ({
+        position: idx + 1,
+        bib_number: p.bib_number,
+        name: p.name,
+        status: p.status || 'finished',
+      })),
+      refereePin: userRole === 'supervisor' ? '9999' : '1234',
+      webhookUrl: customWebhookUrl || undefined,
+      timestamp: new Date().toISOString(),
+    }
+
     // Kirim ke API submit (yang akan forward ke Google Sheets)
     try {
       const res = await fetch('/api/wasit/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchId,
-          matchTitle: matchObj?.title || `MATCH ${matchId}`,
-          results: state.participants.map((p, idx) => ({
-            position: idx + 1,
-            bib_number: p.bib_number,
-            name: p.name,
-            status: p.status || 'finished',
-          })),
-          refereePin: userRole === 'supervisor' ? '9999' : '1234',
-          webhookUrl: customWebhookUrl || undefined,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
       if (data.ok) {
-        showToast(`✅ Hasil ${matchObj?.title || `Match ${matchId}`} BERHASIL DIKUNCI & TERKIRIM!`, 'success')
+        showToast(`✅ Hasil ${payload.matchTitle} BERHASIL DIKUNCI & TERKIRIM!`, 'success')
       } else {
-        showToast(`⚠️ Tersimpan lokal: ${data.error || 'Gagal sinkron ke Sheets.'}`, 'error')
+        saveToPendingQueue(payload)
+        showToast(`⚠️ Server sibuk: Hasil disimpan di HP dan akan dicoba kirim ulang otomatis.`, 'info')
       }
     } catch {
-      showToast('⚠️ Offline: Hasil disimpan di HP dan akan dikirim saat online.', 'info')
+      saveToPendingQueue(payload)
+      showToast('⚠️ Offline: Hasil disimpan di HP dan akan otomatis dikirim saat online.', 'info')
     } finally {
       // Tandai match sebagai FINAL
       updateMatchState(matchId, (prev) => ({
@@ -628,6 +730,22 @@ export default function WasitPage() {
           </div>
         </div>
       </header>
+
+      {/* PENDING SUBMISSION / OFFLINE QUEUE BANNER */}
+      {pendingSubmissions.length > 0 && (
+        <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-3 py-1.5 text-center text-[11px] font-bold text-yellow-300 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 truncate">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-yellow-400" />
+            <span className="truncate">{pendingSubmissions.length} hasil match tersimpan di HP (menunggu kirim).</span>
+          </div>
+          <button
+            onClick={flushPendingQueue}
+            className="shrink-0 bg-yellow-400 hover:bg-yellow-300 text-amber-950 font-black px-2 py-0.5 rounded text-[10px] active:scale-95 transition-all"
+          >
+            Kirim Sekarang
+          </button>
+        </div>
+      )}
 
       {/* 2. WARNING BANNER JIKA ADA MATCH SEDANG BERJALAN & WASIT MENCOBA SWIPE */}
       {isNavDisabled && (

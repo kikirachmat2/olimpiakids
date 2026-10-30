@@ -30,33 +30,45 @@ export async function POST(request: Request) {
     let webhookDetails: unknown = null
 
     if (scriptWebhookUrl) {
-      try {
-        const scriptRes = await fetch(scriptWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'SUBMIT_URUTAN',
-            matchId,
-            matchTitle,
-            results,
-            submittedAt: new Date().toISOString(),
-          }),
-          redirect: 'follow',
-        })
-        
-        if (scriptRes.ok) {
-          webhookStatus = 'success'
-          try {
-            webhookDetails = await scriptRes.json()
-          } catch {
-            // ignore
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const scriptRes = await fetch(scriptWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'SUBMIT_URUTAN',
+              matchId,
+              matchTitle,
+              results,
+              submittedAt: new Date().toISOString(),
+            }),
+            redirect: 'follow',
+          })
+          
+          if (scriptRes.ok) {
+            try {
+              const data = await scriptRes.json()
+              webhookDetails = data
+              if (data && data.ok) {
+                webhookStatus = 'success'
+                break
+              }
+            } catch {
+              webhookStatus = 'success'
+              break
+            }
+          } else {
+            webhookStatus = `failed_${scriptRes.status}`
           }
-        } else {
-          webhookStatus = `failed_${scriptRes.status}`
+        } catch (err) {
+          console.error(`Attempt ${attempt} error calling Apps Script:`, err)
+          webhookStatus = 'error'
         }
-      } catch (err) {
-        console.error('Gagal memanggil webhook Apps Script:', err)
-        webhookStatus = 'error'
+
+        // Jika attempt 1 atau 2 gagal, tunggu sebentar lalu coba lagi
+        if (attempt < 3 && webhookStatus !== 'success') {
+          await new Promise((resolve) => setTimeout(resolve, 800 * attempt))
+        }
       }
     }
 
