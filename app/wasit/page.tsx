@@ -93,7 +93,13 @@ export default function WasitPage() {
     try {
       const s = await getActiveSession()
       if (s) {
-        setSession(s)
+        const safeSession: ActiveMatchSession = {
+          ...s,
+          participants: s.participants || [],
+          splits: s.splits || [],
+          dnfList: s.dnfList || [],
+        }
+        setSession(safeSession)
         if (s.matchId) {
           const idx = matches.findIndex((m) => m.id === s.matchId)
           if (idx !== -1) setCurrentMatchIdx(idx)
@@ -104,8 +110,9 @@ export default function WasitPage() {
         // Map splits to manualTimes
         if (s.splits && s.splits.length > 0) {
           const map: Record<string, string> = {}
-          s.participants.forEach((p, i) => {
-            if (s.splits[i] && p.status !== 'dnf') {
+          const participantList = s.participants || []
+          participantList.forEach((p: WasitParticipant, i: number) => {
+            if (s.splits?.[i] && p.status !== 'dnf') {
               map[p.bib_number] = s.splits[i].timer
             }
           })
@@ -329,7 +336,7 @@ export default function WasitPage() {
       const mergedResults = participants.map((p, idx) => {
         const isDnf = p.status === 'dnf'
         const customTime = manualTimes[p.bib_number] || ''
-        const splitTime = session.splits[idx] ? session.splits[idx].timer : ''
+        const splitTime = session.splits?.[idx]?.timer || ''
         const finalTimer = isDnf ? 'DNF' : (customTime || splitTime || '--.--.--')
 
         return {
@@ -844,7 +851,7 @@ export default function WasitPage() {
             {participants.map((p, idx) => {
               const position = idx + 1
               const isDnf = p.status === 'dnf'
-              const currentTimerVal = manualTimes[p.bib_number] || (session.splits[idx] ? session.splits[idx].timer : '')
+              const currentTimerVal = manualTimes[p.bib_number] || (session.splits?.[idx]?.timer || '')
 
               return (
                 <Reorder.Item
@@ -1021,12 +1028,12 @@ export default function WasitPage() {
                   onChange={(e) => {
                     const bib = e.target.value
                     // cari di match saat ini
-                    const p = currentMatch.participants.find((item) => item.bib_number === bib)
+                    const p = (currentMatch?.participants || []).find((item) => item.bib_number === bib)
                     if (p) setSelectedChildToMove({ matchId: currentMatch.id, participant: p })
                   }}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
                 >
-                  {currentMatch.participants.map((p) => (
+                  {(currentMatch?.participants || []).map((p) => (
                     <option key={p.bib_number} value={p.bib_number}>
                       {p.bib_number} - {p.name}
                     </option>
