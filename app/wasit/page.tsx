@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import {
   Lock,
@@ -429,6 +429,18 @@ export default function WasitPage() {
     participants: currentMatch?.participants || [],
   }
 
+  // Keep latest wasit state in ref for sync handler without re-attaching listeners
+  const wasitStateRef = useRef({
+    currentMatch,
+    currentMatchIdx,
+    currentMatchState,
+  })
+  wasitStateRef.current = {
+    currentMatch,
+    currentMatchIdx,
+    currentMatchState,
+  }
+
   // Realtime Broadcast Listener untuk Mirroring Wasit (HP <-> Laptop/Plasma)
   useEffect(() => {
     const channel = getSyncChannel()
@@ -452,12 +464,13 @@ export default function WasitPage() {
           participants: (payload.participants as WasitParticipant[]) || prev.participants,
         }))
       } else if (payload.action === 'REQUEST_SYNC') {
+        const snap = wasitStateRef.current
         broadcastWasitEvent({
           action: 'FULL_SYNC',
-          matchId: currentMatch?.id,
-          matchIdx: currentMatchIdx,
-          status: currentMatchState.status,
-          participants: currentMatchState.participants,
+          matchId: snap.currentMatch?.id,
+          matchIdx: snap.currentMatchIdx,
+          status: snap.currentMatchState.status,
+          participants: snap.currentMatchState.participants,
         })
       } else if (payload.action === 'FULL_SYNC') {
         if (typeof payload.matchIdx === 'number') setCurrentMatchIdx(payload.matchIdx)
@@ -472,7 +485,7 @@ export default function WasitPage() {
     }
 
     channel.on('broadcast', { event: 'wasit-sync' }, handleWasitSync)
-  }, [currentMatchIdx, currentMatch, currentMatchState, updateMatchState])
+  }, [])
 
   // Cek apakah ada match yang sedang UNLOCKED / ACTIVE saat ini
   let activeRunningMatch: { id: number; title: string } | null = null

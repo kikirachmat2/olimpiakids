@@ -277,6 +277,24 @@ export default function TimerPage() {
     }
   }, [currentMatchIdx, currentMatchState.splits, isRunning, isPaused])
 
+  // Keep latest timer state in ref for sync handler without re-attaching listeners
+  const timerStateRef = useRef({
+    currentMatch,
+    currentMatchIdx,
+    currentMatchState,
+    isRunning,
+    isPaused,
+    elapsedMs,
+  })
+  timerStateRef.current = {
+    currentMatch,
+    currentMatchIdx,
+    currentMatchState,
+    isRunning,
+    isPaused,
+    elapsedMs,
+  }
+
   // Realtime Broadcast Listener untuk Mirroring antar perangkat (HP <-> Laptop/Plasma)
   useEffect(() => {
     const channel = getSyncChannel()
@@ -287,7 +305,7 @@ export default function TimerPage() {
       if (payload.action === 'MATCH_SWITCH' && typeof payload.matchIdx === 'number') {
         setCurrentMatchIdx(payload.matchIdx)
       } else if (payload.action === 'START') {
-        if (typeof payload.matchIdx === 'number' && payload.matchIdx !== currentMatchIdx) {
+        if (typeof payload.matchIdx === 'number') {
           setCurrentMatchIdx(payload.matchIdx)
         }
         startTimeRef.current = performance.now() - (payload.elapsedMs || 0)
@@ -332,15 +350,16 @@ export default function TimerPage() {
           splits: payload.splits || prev.splits,
         }))
       } else if (payload.action === 'REQUEST_SYNC') {
+        const snap = timerStateRef.current
         broadcastTimerEvent({
           action: 'FULL_SYNC',
-          matchId: currentMatch?.id,
-          matchIdx: currentMatchIdx,
-          isRunning,
-          isPaused,
-          elapsedMs,
-          status: currentMatchState.status,
-          splits: currentMatchState.splits,
+          matchId: snap.currentMatch?.id,
+          matchIdx: snap.currentMatchIdx,
+          isRunning: snap.isRunning,
+          isPaused: snap.isPaused,
+          elapsedMs: snap.elapsedMs,
+          status: snap.currentMatchState.status,
+          splits: snap.currentMatchState.splits,
         })
       } else if (payload.action === 'FULL_SYNC') {
         if (typeof payload.matchIdx === 'number') setCurrentMatchIdx(payload.matchIdx)
@@ -365,7 +384,7 @@ export default function TimerPage() {
     }
 
     channel.on('broadcast', { event: 'timer-sync' }, handleTimerSync)
-  }, [currentMatchIdx, currentMatch, currentMatchState, isRunning, isPaused, elapsedMs, updateTimerState])
+  }, [])
 
   const participantCount = currentMatch?.participants?.length || 7
   const isMatchLocked = currentMatchState.status === 'final'
