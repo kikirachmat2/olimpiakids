@@ -638,51 +638,6 @@ export default function LiveLeaderboard() {
         </div>
       </div>
 
-      {/* 2.5 STAGGERED REVEAL BANNER (JEDA 10 - 15 DETIK PER NAMA JIKA MASUK BERSAMAAN) */}
-      <AnimatePresence>
-        {isRevealing && (
-          <motion.div
-            initial={{ opacity: 0, height: 0, y: -6 }}
-            animate={{ opacity: 1, height: 'auto', y: 0 }}
-            exit={{ opacity: 0, height: 0, y: -6 }}
-            transition={{ duration: 0.3 }}
-            className="w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center justify-between shadow-lg border-2 border-white mb-1.5 sm:mb-2 shrink-0 overflow-hidden select-none"
-          >
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <span className="text-base sm:text-xl animate-pulse">⏱️</span>
-              <div className="font-display font-black text-xs sm:text-sm md:text-base truncate flex items-center gap-1.5">
-                <span className="text-amber-900 uppercase">
-                  REVEAL HASIL ({revealProgress.current}/{revealProgress.total}):
-                </span>
-                <span className="bg-white/95 px-2 py-0.5 rounded-lg text-amber-950 shadow-sm font-black truncate max-w-[140px] sm:max-w-xs">
-                  {revealingItem?.participant_name}
-                </span>
-                <span className="text-[11px] bg-amber-950 text-yellow-300 font-mono px-1.5 py-0.5 rounded font-black">
-                  #{revealingItem?.rank}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <div className="font-mono font-black text-xs sm:text-sm flex items-center gap-1">
-                <span className="opacity-75 hidden md:inline">Berikutnya:</span>
-                <span className="bg-amber-950 text-yellow-300 px-2 py-0.5 rounded-lg text-xs sm:text-sm font-black shadow-inner min-w-[32px] text-center">
-                  {countdown}s
-                </span>
-              </div>
-
-              <button
-                onClick={skipReveal}
-                className="bg-amber-950 hover:bg-black text-white font-bold text-[10px] sm:text-xs px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl active:scale-95 transition-all shadow-sm"
-                title="Tampilkan semua langsung tanpa jeda (Hotkey: Spasi)"
-              >
-                Lewati [Spasi]
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - TAMPILKAN 10 BESAR SECARA PRESISI */}
       <div className="w-full bg-white/95 backdrop-blur-md rounded-xl sm:rounded-3xl border-[2.5px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-1.5 sm:p-2.5 md:p-3 lg:p-3.5 overflow-hidden flex flex-col flex-1 min-h-0">
         {/* HEADER ROW TABEL (10% 20% 48% 22%) */}
@@ -724,36 +679,6 @@ export default function LiveLeaderboard() {
             )}
           </AnimatePresence>
         </div>
-      </div>
-
-      {/* 4. FLOATING OPERATOR CONTROLS (PENGATURAN JEDA & MUTE) */}
-      <div className="fixed bottom-2 right-2 sm:bottom-3 sm:right-3 z-50 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-white px-2.5 py-1 rounded-full text-[10px] sm:text-xs shadow-lg opacity-40 hover:opacity-100 transition-opacity">
-        <span className="text-slate-400 font-bold hidden sm:inline">⏱️ Jeda:</span>
-        {[10, 12, 15].map((sec) => (
-          <button
-            key={sec}
-            onClick={() => {
-              setRevealDelay(sec)
-              try { localStorage.setItem('olimpiakids_reveal_delay', sec.toString()) } catch {}
-            }}
-            className={`px-1.5 py-0.5 rounded-md font-bold transition-all ${
-              revealDelay === sec
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-            title={`Atur jeda reveal antar nama ke ${sec} detik`}
-          >
-            {sec}s
-          </button>
-        ))}
-        <span className="text-slate-600">|</span>
-        <button
-          onClick={() => setIsMuted((prev) => !prev)}
-          className="text-slate-300 hover:text-white"
-          title="Toggle Mute (Hotkey: M)"
-        >
-          {isMuted ? '🔇' : '🔊'}
-        </button>
       </div>
     </div>
   )

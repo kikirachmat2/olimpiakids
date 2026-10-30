@@ -19,6 +19,12 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { DEFAULT_MATCHES, WasitMatch } from '@/lib/wasitDefaults'
+import {
+  getSyncChannel,
+  broadcastTimerEvent,
+  CLIENT_ID,
+  RealtimeTimerPayload,
+} from '@/lib/realtimeSync'
 
 type MatchStatus = 'standby' | 'active' | 'final'
 
@@ -271,6 +277,96 @@ export default function TimerPage() {
     }
   }, [currentMatchIdx, currentMatchState.splits, isRunning, isPaused])
 
+  // Realtime Broadcast Listener untuk Mirroring antar perangkat (HP <-> Laptop/Plasma)
+  useEffect(() => {
+    const channel = getSyncChannel()
+
+    const handleTimerSync = ({ payload }: { payload: RealtimeTimerPayload }) => {
+      if (!payload || payload.senderId === CLIENT_ID) return
+
+      if (payload.action === 'MATCH_SWITCH' && typeof payload.matchIdx === 'number') {
+        setCurrentMatchIdx(payload.matchIdx)
+      } else if (payload.action === 'START') {
+        if (typeof payload.matchIdx === 'number' && payload.matchIdx !== currentMatchIdx) {
+          setCurrentMatchIdx(payload.matchIdx)
+        }
+        startTimeRef.current = performance.now() - (payload.elapsedMs || 0)
+        pausedTimeRef.current = 0
+        setElapsedMs(payload.elapsedMs || 0)
+        setIsRunning(true)
+        setIsPaused(false)
+      } else if (payload.action === 'SPLIT' && payload.splits) {
+        if (payload.matchId) {
+          updateTimerState(payload.matchId, (prev) => ({
+            ...prev,
+            splits: payload.splits!,
+          }))
+        }
+        if (payload.isRunning === false) {
+          setIsRunning(false)
+          setIsPaused(false)
+        }
+      } else if (payload.action === 'PAUSE') {
+        setIsRunning(false)
+        setIsPaused(true)
+        if (typeof payload.elapsedMs === 'number') setElapsedMs(payload.elapsedMs)
+      } else if (payload.action === 'RESUME') {
+        const ms = payload.elapsedMs || 0
+        startTimeRef.current = performance.now() - ms
+        setIsRunning(true)
+        setIsPaused(false)
+      } else if (payload.action === 'RESET') {
+        setIsRunning(false)
+        setIsPaused(false)
+        setElapsedMs(0)
+        if (payload.matchId) {
+          updateTimerState(payload.matchId, (prev) => ({
+            ...prev,
+            splits: [],
+          }))
+        }
+      } else if (payload.action === 'STATUS_CHANGE' && payload.matchId && payload.status) {
+        updateTimerState(payload.matchId, (prev) => ({
+          ...prev,
+          status: payload.status!,
+          splits: payload.splits || prev.splits,
+        }))
+      } else if (payload.action === 'REQUEST_SYNC') {
+        broadcastTimerEvent({
+          action: 'FULL_SYNC',
+          matchId: currentMatch?.id,
+          matchIdx: currentMatchIdx,
+          isRunning,
+          isPaused,
+          elapsedMs,
+          status: currentMatchState.status,
+          splits: currentMatchState.splits,
+        })
+      } else if (payload.action === 'FULL_SYNC') {
+        if (typeof payload.matchIdx === 'number') setCurrentMatchIdx(payload.matchIdx)
+        if (payload.matchId && payload.splits) {
+          updateTimerState(payload.matchId, (prev) => ({
+            ...prev,
+            status: payload.status || prev.status,
+            splits: payload.splits!,
+          }))
+        }
+        if (payload.isRunning) {
+          startTimeRef.current = performance.now() - (payload.elapsedMs || 0)
+          setElapsedMs(payload.elapsedMs || 0)
+          setIsRunning(true)
+          setIsPaused(false)
+        } else if (payload.isPaused) {
+          setIsRunning(false)
+          setIsPaused(true)
+          setElapsedMs(payload.elapsedMs || 0)
+        }
+      }
+    }
+
+    channel.on('broadcast', { event: 'timer-sync' }, handleTimerSync)
+  }, [currentMatchIdx, currentMatch, currentMatchState, isRunning, isPaused, elapsedMs, updateTimerState])
+
   const participantCount = currentMatch?.participants?.length || 7
   const isMatchLocked = currentMatchState.status === 'final'
   const isMatchActive = currentMatchState.status === 'active'
@@ -306,6 +402,15 @@ export default function TimerPage() {
     setElapsedMs(0)
     setIsRunning(true)
     setIsPaused(false)
+
+    broadcastTimerEvent({
+      action: 'START',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+      startTime: Date.now(),
+      elapsedMs: 0,
+      isRunning: true,
+    })
   }
 
   // SPLIT
@@ -326,8 +431,19 @@ export default function TimerPage() {
       splits: newSplits,
     }))
 
+    const isFinished = newSplits.length >= participantCount
+
+    // Broadcast split ke Plasma / Desktop
+    broadcastTimerEvent({
+      action: 'SPLIT',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+      splits: newSplits,
+      isRunning: !isFinished,
+    })
+
     // JIKA SPLIT SUDAH SAMPAI SLOT TERAKHIR: OTOMATIS FINISH & STOP!
-    if (newSplits.length >= participantCount) {
+    if (isFinished) {
       setIsRunning(false)
       setIsPaused(false)
       playBeep(523.25, 0.4, 'sine') // Final long tone
@@ -342,6 +458,13 @@ export default function TimerPage() {
     setIsPaused(true)
     pausedTimeRef.current = performance.now()
     playBeep(440, 0.1, 'sawtooth')
+
+    broadcastTimerEvent({
+      action: 'PAUSE',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+      elapsedMs,
+    })
   }
 
   // RESUME
@@ -352,6 +475,14 @@ export default function TimerPage() {
     startTimeRef.current += pauseDuration
     setIsRunning(true)
     setIsPaused(false)
+
+    broadcastTimerEvent({
+      action: 'RESUME',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+      elapsedMs,
+      startTime: Date.now() - elapsedMs,
+    })
   }
 
   // RESET
@@ -370,6 +501,12 @@ export default function TimerPage() {
     setConfirmModal(null)
     playBeep(350, 0.15, 'sawtooth')
     showToast('Stopwatch di-reset ke 00:00.00 dan slot dikosongkan.', 'info')
+
+    broadcastTimerEvent({
+      action: 'RESET',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+    })
   }
 
   // =========================================================================
@@ -459,6 +596,14 @@ export default function TimerPage() {
       lockedAt: new Date().toISOString(),
     }))
 
+    broadcastTimerEvent({
+      action: 'STATUS_CHANGE',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+      status: 'final',
+      splits: currentMatchState.splits,
+    })
+
     // Coba kirim online
     if (navigator.onLine) {
       try {
@@ -502,6 +647,12 @@ export default function TimerPage() {
       ...prev,
       status: 'active',
     }))
+    broadcastTimerEvent({
+      action: 'STATUS_CHANGE',
+      matchId,
+      matchIdx: currentMatchIdx,
+      status: 'active',
+    })
     setConfirmModal(null)
     showToast(`Gembok ${currentMatch?.title} dibuka! Siap memulai timer.`, 'success')
   }
@@ -515,6 +666,12 @@ export default function TimerPage() {
           ...prev,
           status: 'active',
         }))
+        broadcastTimerEvent({
+          action: 'STATUS_CHANGE',
+          matchId: emergencyModal,
+          matchIdx: currentMatchIdx,
+          status: 'active',
+        })
         showToast('Mode Darurat: Gembok match berhasil dibuka ulang!', 'success')
       }
       setEmergencyModal(null)
@@ -689,19 +846,19 @@ export default function TimerPage() {
         </div>
       )}
 
-      {/* WARNING BANNER JIKA TIMER BERJALAN & OPERATOR MENCOBA NAVIGASI */}
-      {isNavDisabled && (
-        <div className="bg-amber-500/20 border-b border-amber-500/40 px-3 py-1 text-center text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          <span>Timer sedang aktif! Selesaikan atau pause match sebelum berpindah.</span>
-        </div>
-      )}
-
       {/* 2. MATCH SELECTOR CAROUSEL (PALING ATAS) */}
       <div className="w-full max-w-md mx-auto px-3 pt-2.5">
         <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-2.5 flex items-center justify-between shadow-sm">
           <button
-            onClick={() => setCurrentMatchIdx((prev) => Math.max(0, prev - 1))}
+            onClick={() => {
+              const nextIdx = Math.max(0, currentMatchIdx - 1)
+              setCurrentMatchIdx(nextIdx)
+              broadcastTimerEvent({
+                action: 'MATCH_SWITCH',
+                matchIdx: nextIdx,
+                matchId: matches[nextIdx]?.id,
+              })
+            }}
             disabled={currentMatchIdx === 0 || isNavDisabled}
             className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-white transition-all"
           >
@@ -724,7 +881,15 @@ export default function TimerPage() {
           </div>
 
           <button
-            onClick={() => setCurrentMatchIdx((prev) => Math.min(matches.length - 1, prev + 1))}
+            onClick={() => {
+              const nextIdx = Math.min(matches.length - 1, currentMatchIdx + 1)
+              setCurrentMatchIdx(nextIdx)
+              broadcastTimerEvent({
+                action: 'MATCH_SWITCH',
+                matchIdx: nextIdx,
+                matchId: matches[nextIdx]?.id,
+              })
+            }}
             disabled={currentMatchIdx === matches.length - 1 || isNavDisabled}
             className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-white transition-all"
           >
@@ -892,14 +1057,11 @@ export default function TimerPage() {
 
         {/* KONDISI B: MATCH SUDAH FINAL */}
         {isMatchLocked && (
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 text-center">
+          <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl py-3 px-4 text-center">
             <div className="font-display font-black text-xs text-amber-400 uppercase flex items-center justify-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>HASIL TIMER MATCH INI TELAH DIKUNCI & FINAL</span>
+              <span>HASIL TIMER TELAH FINAL</span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Data split sudah tersimpan di Google Sheets. Beralihlah ke match berikutnya.
-            </p>
           </div>
         )}
 
@@ -913,7 +1075,7 @@ export default function TimerPage() {
                 className="w-full h-18 py-4.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-black text-lg uppercase tracking-wider shadow-xl flex items-center justify-center gap-2.5 active:scale-95 transition-all"
               >
                 <Play className="w-7 h-7 fill-white" />
-                <span>START TIMER (GEDE BANGET)</span>
+                <span>START TIMER</span>
               </button>
             )}
 

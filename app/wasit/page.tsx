@@ -16,6 +16,12 @@ import {
   GripVertical,
 } from 'lucide-react'
 import { DEFAULT_MATCHES, WasitMatch, WasitParticipant } from '@/lib/wasitDefaults'
+import {
+  getSyncChannel,
+  broadcastWasitEvent,
+  CLIENT_ID,
+  RealtimeWasitPayload,
+} from '@/lib/realtimeSync'
 
 type MatchStatus = 'standby' | 'active' | 'final'
 
@@ -128,19 +134,19 @@ function ParticipantCard({
         {rankBadge}
       </div>
 
-      {/* Child Information (Full name visible, wrap gracefully) */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-mono font-black text-xs px-2 py-0.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-400/30">
+      {/* Child Information: NOMOR DADA JAUH LEBIH BESAR DARI NAMA */}
+      <div className="min-w-0 flex-1 pl-1">
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-black text-2xl sm:text-3xl text-yellow-400 tracking-wider leading-none">
             {p.bib_number}
           </span>
           {isDnf && (
-            <span className="text-[10px] bg-red-500/20 text-red-400 font-black px-1.5 py-0.5 rounded border border-red-500/30 uppercase">
-              Mogok / DNF
+            <span className="text-[10px] bg-red-500/30 text-red-300 font-black px-2 py-0.5 rounded-md border border-red-500/50 uppercase">
+              DNF
             </span>
           )}
         </div>
-        <div className="font-display font-bold text-sm text-white mt-1 leading-snug break-words">
+        <div className="text-xs font-semibold text-slate-300 truncate mt-1 uppercase tracking-wide">
           {p.name}
         </div>
       </div>
@@ -423,6 +429,51 @@ export default function WasitPage() {
     participants: currentMatch?.participants || [],
   }
 
+  // Realtime Broadcast Listener untuk Mirroring Wasit (HP <-> Laptop/Plasma)
+  useEffect(() => {
+    const channel = getSyncChannel()
+
+    const handleWasitSync = ({ payload }: { payload: RealtimeWasitPayload }) => {
+      if (!payload || payload.senderId === CLIENT_ID) return
+
+      if (payload.action === 'MATCH_SWITCH' && typeof payload.matchIdx === 'number') {
+        setCurrentMatchIdx(payload.matchIdx)
+      } else if (payload.action === 'REORDER' || payload.action === 'DNF') {
+        if (payload.matchId && payload.participants) {
+          updateMatchState(payload.matchId, (prev) => ({
+            ...prev,
+            participants: payload.participants as WasitParticipant[],
+          }))
+        }
+      } else if (payload.action === 'STATUS_CHANGE' && payload.matchId && payload.status) {
+        updateMatchState(payload.matchId, (prev) => ({
+          ...prev,
+          status: payload.status!,
+          participants: (payload.participants as WasitParticipant[]) || prev.participants,
+        }))
+      } else if (payload.action === 'REQUEST_SYNC') {
+        broadcastWasitEvent({
+          action: 'FULL_SYNC',
+          matchId: currentMatch?.id,
+          matchIdx: currentMatchIdx,
+          status: currentMatchState.status,
+          participants: currentMatchState.participants,
+        })
+      } else if (payload.action === 'FULL_SYNC') {
+        if (typeof payload.matchIdx === 'number') setCurrentMatchIdx(payload.matchIdx)
+        if (payload.matchId && payload.participants) {
+          updateMatchState(payload.matchId, (prev) => ({
+            ...prev,
+            status: payload.status || prev.status,
+            participants: payload.participants as WasitParticipant[],
+          }))
+        }
+      }
+    }
+
+    channel.on('broadcast', { event: 'wasit-sync' }, handleWasitSync)
+  }, [currentMatchIdx, currentMatch, currentMatchState, updateMatchState])
+
   // Cek apakah ada match yang sedang UNLOCKED / ACTIVE saat ini
   let activeRunningMatch: { id: number; title: string } | null = null
   for (const [idStr, state] of Object.entries(matchStates)) {
@@ -458,12 +509,21 @@ export default function WasitPage() {
   const handleReorder = (newOrder: WasitParticipant[]) => {
     if (currentMatchState.status !== 'active') return
 
-    updateMatchState(currentMatch.id, (prev) => {
-      const updatedItems = newOrder.map((p, idx) => ({
-        ...p,
-        position: idx + 1,
-      }))
-      return { ...prev, participants: updatedItems }
+    const updatedItems = newOrder.map((p, idx) => ({
+      ...p,
+      position: idx + 1,
+    }))
+
+    updateMatchState(currentMatch.id, (prev) => ({
+      ...prev,
+      participants: updatedItems,
+    }))
+
+    broadcastWasitEvent({
+      action: 'REORDER',
+      matchId: currentMatch.id,
+      matchIdx: currentMatchIdx,
+      participants: updatedItems,
     })
   }
 
@@ -490,6 +550,13 @@ export default function WasitPage() {
         ...p,
         position: idx + 1,
       }))
+
+      broadcastWasitEvent({
+        action: 'DNF',
+        matchId: currentMatch.id,
+        matchIdx: currentMatchIdx,
+        participants: updatedItems,
+      })
 
       return { ...prev, participants: updatedItems }
     })
@@ -533,6 +600,12 @@ export default function WasitPage() {
       ...prev,
       status: 'active',
     }))
+    broadcastWasitEvent({
+      action: 'STATUS_CHANGE',
+      matchId,
+      matchIdx: currentMatchIdx,
+      status: 'active',
+    })
     setConfirmModal(null)
     showToast(`Match ${matchId} AKTIF! Silakan atur urutan finish anak.`, 'success')
   }
@@ -582,13 +655,26 @@ export default function WasitPage() {
         status: 'final',
         lockedAt: new Date().toISOString(),
       }))
+      broadcastWasitEvent({
+        action: 'STATUS_CHANGE',
+        matchId,
+        matchIdx: currentMatchIdx,
+        status: 'final',
+        participants: state.participants,
+      })
       setIsSubmitting(false)
       setConfirmModal(null)
 
       // Geser otomatis ke match berikutnya jika belum match terakhir
       if (currentMatchIdx < matches.length - 1) {
         setTimeout(() => {
-          setCurrentMatchIdx((prev) => prev + 1)
+          const nextIdx = currentMatchIdx + 1
+          setCurrentMatchIdx(nextIdx)
+          broadcastWasitEvent({
+            action: 'MATCH_SWITCH',
+            matchIdx: nextIdx,
+            matchId: matches[nextIdx]?.id,
+          })
         }, 800)
       }
     }
@@ -606,6 +692,12 @@ export default function WasitPage() {
         ...prev,
         status: 'active',
       }))
+      broadcastWasitEvent({
+        action: 'STATUS_CHANGE',
+        matchId: emergencyModal,
+        matchIdx: currentMatchIdx,
+        status: 'active',
+      })
       showToast(`Kunci darurat Match ${emergencyModal} berhasil dibuka!`, 'success')
       setEmergencyModal(null)
       setEmergencyPin('')
@@ -755,19 +847,19 @@ export default function WasitPage() {
         </div>
       )}
 
-      {/* 2. WARNING BANNER JIKA ADA MATCH SEDANG BERJALAN & WASIT MENCOBA SWIPE */}
-      {isNavDisabled && (
-        <div className="bg-amber-500/20 border-b border-amber-500/40 px-3 py-1.5 text-center text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          <span>Match ini sedang dinilai! Kunci match terlebih dahulu untuk membuka match lain.</span>
-        </div>
-      )}
-
       {/* 3. CAROUSEL SELECTOR: MATCH 1 DARI 12 */}
       <div className="w-full max-w-md mx-auto px-3 pt-3">
         <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-2.5 flex items-center justify-between shadow-sm">
           <button
-            onClick={() => setCurrentMatchIdx((prev) => Math.max(0, prev - 1))}
+            onClick={() => {
+              const nextIdx = Math.max(0, currentMatchIdx - 1)
+              setCurrentMatchIdx(nextIdx)
+              broadcastWasitEvent({
+                action: 'MATCH_SWITCH',
+                matchIdx: nextIdx,
+                matchId: matches[nextIdx]?.id,
+              })
+            }}
             disabled={currentMatchIdx === 0 || isNavDisabled}
             className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-white transition-all"
           >
@@ -790,7 +882,15 @@ export default function WasitPage() {
           </div>
 
           <button
-            onClick={() => setCurrentMatchIdx((prev) => Math.min(matches.length - 1, prev + 1))}
+            onClick={() => {
+              const nextIdx = Math.min(matches.length - 1, currentMatchIdx + 1)
+              setCurrentMatchIdx(nextIdx)
+              broadcastWasitEvent({
+                action: 'MATCH_SWITCH',
+                matchIdx: nextIdx,
+                matchId: matches[nextIdx]?.id,
+              })
+            }}
             disabled={currentMatchIdx === matches.length - 1 || isNavDisabled}
             className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-white transition-all"
           >
@@ -835,13 +935,6 @@ export default function WasitPage() {
 
       {/* 4. LIST PESERTA (DRAG & DROP REORDER) */}
       <main className="flex-1 w-full max-w-md mx-auto px-3 py-3 overflow-y-auto">
-        {isMatchActive && (
-          <div className="text-[11px] text-slate-400 font-medium flex items-center justify-between px-1 mb-2.5">
-            <span>Tahan & geser ikon <b className="text-white font-bold">⠿</b> untuk atur urutan</span>
-            <span className="text-yellow-400 font-bold">Posisi 1 = Juara 1</span>
-          </div>
-        )}
-
         <Reorder.Group
           axis="y"
           values={currentMatchState.participants}
@@ -904,14 +997,11 @@ export default function WasitPage() {
 
           {/* JIKA MATCH FINAL / TERKUNCI */}
           {isMatchLocked && (
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 text-center">
+            <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl py-3 px-4 text-center">
               <div className="font-display font-black text-xs text-amber-400 uppercase flex items-center justify-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>HASIL MATCH INI TELAH DIKUNCI & FINAL</span>
+                <span>HASIL MATCH TELAH FINAL</span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">
-                Data sudah terkirim ke Google Sheets. Beralihlah ke match berikutnya.
-              </p>
             </div>
           )}
         </div>
