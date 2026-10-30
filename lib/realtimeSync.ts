@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { WasitParticipant } from './wasitDefaults'
+import { ActiveMatchSession } from './sessionStore'
 
 // Unique client ID per browser tab session to avoid processing self-broadcasts
 export const CLIENT_ID =
@@ -8,6 +9,24 @@ export const CLIENT_ID =
       ((window as unknown as { __olimpiakids_cid?: string }).__olimpiakids_cid =
         'client_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36))
     : 'server'
+
+export interface RealtimeSessionPayload {
+  action:
+    | 'SESSION_SYNC'
+    | 'UNLOCK_MATCH'
+    | 'LOCK_MATCH'
+    | 'START_TIMER'
+    | 'SPLIT_TIMER'
+    | 'RESET_TIMER'
+    | 'REORDER_WASIT'
+    | 'DNF_WASIT'
+    | 'MANUAL_TIME_EDIT'
+    | 'LOCK_FINAL'
+    | 'REQUEST_SYNC'
+    | 'MATCH_SWITCH'
+  session: ActiveMatchSession
+  senderId?: string
+}
 
 export interface RealtimeTimerPayload {
   action:
@@ -22,9 +41,9 @@ export interface RealtimeTimerPayload {
     | 'FULL_SYNC'
   matchId?: number
   matchIdx?: number
-  startTime?: number // unix timestamp ms
+  startTime?: number
   elapsedMs?: number
-  splits?: Array<{ position: number; timer: string; elapsedMs: number }>
+  splits?: Array<{ position: number; timer: string; elapsedMs: number; manualEdited?: boolean }>
   isRunning?: boolean
   isPaused?: boolean
   status?: 'standby' | 'active' | 'final'
@@ -39,6 +58,8 @@ export interface RealtimeWasitPayload {
     | 'STATUS_CHANGE'
     | 'REQUEST_SYNC'
     | 'FULL_SYNC'
+    | 'UNLOCK'
+    | 'LOCK'
   matchId?: number
   matchIdx?: number
   participants?: WasitParticipant[]
@@ -65,9 +86,7 @@ export function getSyncChannel() {
     broadcastChannel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         isChannelSubscribed = true
-        console.log('[RealtimeSync] Connected to broadcast channel:', SYNC_CHANNEL_NAME)
 
-        // Flush pending broadcasts jika ada antrian saat reconnect
         while (pendingBroadcastQueue.length > 0) {
           const item = pendingBroadcastQueue.shift()
           if (item && broadcastChannel) {
@@ -87,20 +106,53 @@ export function getSyncChannel() {
 }
 
 /**
- * Broadcast event perubahan Timer ke semua device (Laptop / Plasma / Wasit)
- * Dual-Sync: Mengirim via Supabase WebSocket + update `/api/plasma/state` HTTP
+ * Broadcast event perubahan sesi aktif ke Wasit, Timer, Plasma
  */
+export function broadcastSessionEvent(payload: Omit<RealtimeSessionPayload, 'senderId'>) {
+  const fullPayload: RealtimeSessionPayload = {
+    ...payload,
+    senderId: CLIENT_ID,
+  }
+
+  try {
+    const ch = getSyncChannel()
+    if (isChannelSubscribed && ch) {
+      ch.send({
+        type: 'broadcast',
+        event: 'session-sync',
+        payload: fullPayload,
+      })
+    } else {
+      pendingBroadcastQueue.push({ event: 'session-sync', payload: fullPayload })
+    }
+  } catch (err) {
+    console.warn('[RealtimeSync] WebSocket broadcast error:', err)
+  }
+
+  // Update HTTP Endpoint fallback
+  if (typeof window !== 'undefined') {
+    fetch('/api/plasma/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session: fullPayload.session,
+        action: fullPayload.action,
+        senderId: CLIENT_ID,
+      }),
+    }).catch(() => {})
+  }
+}
+
 export function broadcastTimerEvent(payload: Omit<RealtimeTimerPayload, 'senderId'>) {
   const fullPayload = {
     ...payload,
     senderId: CLIENT_ID,
   }
 
-  // 1. Supabase WebSocket Broadcast
   try {
-    const channel = getSyncChannel()
-    if (isChannelSubscribed) {
-      channel.send({
+    const ch = getSyncChannel()
+    if (isChannelSubscribed && ch) {
+      ch.send({
         type: 'broadcast',
         event: 'timer-sync',
         payload: fullPayload,
@@ -109,45 +161,20 @@ export function broadcastTimerEvent(payload: Omit<RealtimeTimerPayload, 'senderI
       pendingBroadcastQueue.push({ event: 'timer-sync', payload: fullPayload })
     }
   } catch (err) {
-    console.warn('[RealtimeSync] Gagal broadcast timer event via WS:', err)
-  }
-
-  // 2. HTTP State Dual-Backup (Non-blocking)
-  if (typeof window !== 'undefined' && payload.action !== 'REQUEST_SYNC') {
-    fetch('/api/plasma/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        matchIdx: payload.matchIdx,
-        matchId: payload.matchId,
-        timer: {
-          status: payload.status,
-          isRunning: payload.isRunning,
-          isPaused: payload.isPaused,
-          startTime: payload.startTime || null,
-          elapsedMs: payload.elapsedMs || 0,
-          splits: payload.splits || [],
-        },
-      }),
-    }).catch(() => {})
+    console.warn('[RealtimeSync] WebSocket broadcast error:', err)
   }
 }
 
-/**
- * Broadcast event perubahan Wasit ke semua device (Laptop / Plasma / Timer)
- * Dual-Sync: Mengirim via Supabase WebSocket + update `/api/plasma/state` HTTP
- */
 export function broadcastWasitEvent(payload: Omit<RealtimeWasitPayload, 'senderId'>) {
   const fullPayload = {
     ...payload,
     senderId: CLIENT_ID,
   }
 
-  // 1. Supabase WebSocket Broadcast
   try {
-    const channel = getSyncChannel()
-    if (isChannelSubscribed) {
-      channel.send({
+    const ch = getSyncChannel()
+    if (isChannelSubscribed && ch) {
+      ch.send({
         type: 'broadcast',
         event: 'wasit-sync',
         payload: fullPayload,
@@ -156,22 +183,6 @@ export function broadcastWasitEvent(payload: Omit<RealtimeWasitPayload, 'senderI
       pendingBroadcastQueue.push({ event: 'wasit-sync', payload: fullPayload })
     }
   } catch (err) {
-    console.warn('[RealtimeSync] Gagal broadcast wasit event via WS:', err)
-  }
-
-  // 2. HTTP State Dual-Backup (Non-blocking)
-  if (typeof window !== 'undefined' && payload.action !== 'REQUEST_SYNC') {
-    fetch('/api/plasma/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        matchIdx: payload.matchIdx,
-        matchId: payload.matchId,
-        wasit: {
-          status: payload.status,
-          participants: payload.participants || [],
-        },
-      }),
-    }).catch(() => {})
+    console.warn('[RealtimeSync] WebSocket broadcast error:', err)
   }
 }

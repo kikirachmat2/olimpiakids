@@ -1,12 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import {
   Lock,
   Unlock,
   ChevronLeft,
-  ChevronRight,
+  ChevronUp,
+  ChevronDown,
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
@@ -14,763 +15,549 @@ import {
   ShieldAlert,
   Settings,
   GripVertical,
+  LogOut,
+  Users,
+  Clock,
+  Send,
+  Edit3,
 } from 'lucide-react'
 import { DEFAULT_MATCHES, WasitMatch, WasitParticipant } from '@/lib/wasitDefaults'
 import {
   getSyncChannel,
+  broadcastSessionEvent,
   broadcastWasitEvent,
   CLIENT_ID,
-  RealtimeWasitPayload,
+  RealtimeSessionPayload,
 } from '@/lib/realtimeSync'
-
-type MatchStatus = 'standby' | 'active' | 'final'
-
-interface MatchState {
-  status: MatchStatus
-  participants: WasitParticipant[]
-  lockedAt?: string
-}
-
-interface PendingSubmission {
-  matchId: number
-  matchTitle: string
-  results: Array<{
-    position: number
-    bib_number: string
-    name: string
-    status: string
-  }>
-  refereePin: string
-  webhookUrl?: string
-  timestamp: string
-}
-
-interface ParticipantCardProps {
-  participant: WasitParticipant
-  index: number
-  isMatchActive: boolean
-  onToggleDnf: (bib: string) => void
-  onOpenMoveModal: (p: WasitParticipant) => void
-}
-
-function ParticipantCard({
-  participant: p,
-  index,
-  isMatchActive,
-  onToggleDnf,
-  onOpenMoveModal,
-}: ParticipantCardProps) {
-  const dragControls = useDragControls()
-  const isDnf = p.status === 'dnf'
-  const isTop1 = index === 0 && !isDnf
-  const isTop2 = index === 1 && !isDnf
-  const isTop3 = index === 2 && !isDnf
-
-  // Clean, modern Rank Badge (NO MEDALS / EMOJIS)
-  let rankBadge = (
-    <div className="w-9 h-9 rounded-xl bg-slate-800 text-slate-300 font-display font-black text-sm flex items-center justify-center shrink-0 border border-slate-700">
-      {index + 1}
-    </div>
-  )
-
-  let cardBorder = 'border-slate-700/80'
-  let cardBg = 'bg-slate-800/90'
-
-  if (isTop1) {
-    cardBg = 'bg-slate-800/95'
-    cardBorder = 'border-amber-400'
-    rankBadge = (
-      <div className="w-9 h-9 rounded-xl bg-amber-400 text-amber-950 font-display font-black text-base flex items-center justify-center shrink-0 shadow-sm">
-        1
-      </div>
-    )
-  } else if (isTop2) {
-    cardBg = 'bg-slate-800/95'
-    cardBorder = 'border-slate-300/80'
-    rankBadge = (
-      <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-900 font-display font-black text-base flex items-center justify-center shrink-0 shadow-sm">
-        2
-      </div>
-    )
-  } else if (isTop3) {
-    cardBg = 'bg-slate-800/95'
-    cardBorder = 'border-amber-600/80'
-    rankBadge = (
-      <div className="w-9 h-9 rounded-xl bg-amber-600 text-white font-display font-black text-base flex items-center justify-center shrink-0 shadow-sm">
-        3
-      </div>
-    )
-  } else if (isDnf) {
-    cardBg = 'bg-red-950/20'
-    cardBorder = 'border-red-900/40 opacity-70'
-    rankBadge = (
-      <div className="w-9 h-9 rounded-xl bg-red-900/50 text-red-300 font-display font-black text-[11px] flex items-center justify-center shrink-0 border border-red-700/50">
-        DNF
-      </div>
-    )
-  }
-
-  return (
-    <Reorder.Item
-      value={p}
-      id={p.bib_number}
-      dragListener={false}
-      dragControls={dragControls}
-      className={`relative rounded-2xl border p-2.5 flex items-center justify-between gap-2.5 transition-colors select-none ${cardBg} ${cardBorder}`}
-      whileDrag={{
-        scale: 1.02,
-        boxShadow: '0 15px 30px -5px rgba(0, 0, 0, 0.7)',
-        borderColor: '#f59e0b',
-        zIndex: 50,
-      }}
-    >
-      {/* Rank Badge - also allows touch drag start */}
-      <div
-        onPointerDown={(e) => {
-          if (isMatchActive) dragControls.start(e)
-        }}
-        className={isMatchActive ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}
-      >
-        {rankBadge}
-      </div>
-
-      {/* Child Information: NOMOR DADA JAUH LEBIH BESAR DARI NAMA */}
-      <div className="min-w-0 flex-1 pl-1">
-        <div className="flex items-center gap-2">
-          <span className="font-mono font-black text-2xl sm:text-3xl text-yellow-400 tracking-wider leading-none">
-            {p.bib_number}
-          </span>
-          {isDnf && (
-            <span className="text-[10px] bg-red-500/30 text-red-300 font-black px-2 py-0.5 rounded-md border border-red-500/50 uppercase">
-              DNF
-            </span>
-          )}
-        </div>
-        <div className="text-xs font-semibold text-slate-300 truncate mt-1 uppercase tracking-wide">
-          {p.name}
-        </div>
-      </div>
-
-      {/* Right Actions */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        {isMatchActive ? (
-          <>
-            {/* DNF Button */}
-            <button
-              onClick={() => onToggleDnf(p.bib_number)}
-              className={`px-2 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
-                isDnf
-                  ? 'bg-red-500 text-white border-red-400'
-                  : 'bg-slate-700/60 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-600'
-              }`}
-              title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
-            >
-              DNF
-            </button>
-
-            {/* Pindah Match Button */}
-            <button
-              onClick={() => onOpenMoveModal(p)}
-              className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 transition-all"
-              title="Pindahkan ke Match lain"
-            >
-              <MoveRight className="w-4 h-4" />
-            </button>
-
-            {/* Drag Handle */}
-            <div
-              onPointerDown={(e) => dragControls.start(e)}
-              className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 active:bg-yellow-400 active:text-amber-950 flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-300 transition-colors touch-none shadow-sm"
-              title="Tahan dan geser posisi anak"
-            >
-              <GripVertical className="w-5 h-5" />
-            </div>
-          </>
-        ) : (
-          <div className="text-right px-2">
-            <span className="text-[11px] font-bold text-slate-400">
-              {p.status === 'dnf' ? 'DNF' : `Peringkat ${index + 1}`}
-            </span>
-          </div>
-        )}
-      </div>
-    </Reorder.Item>
-  )
-}
+import {
+  ActiveMatchSession,
+  INITIAL_MATCH_SESSION,
+  getActiveSession,
+  saveActiveSession,
+} from '@/lib/sessionStore'
 
 export default function WasitPage() {
-  // 1. STATE AUTHENTICATION (PIN)
-  const [pinInput, setPinInput] = useState('')
+  // 1. AUTH STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [userRole, setUserRole] = useState<'referee' | 'supervisor'>('referee')
+  const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
+  const [isSupervisor, setIsSupervisor] = useState(false)
 
-  // 2. STATE MATCH & CAROUSEL
+  // 2. VIEW MODE: 'MATCH_LIST' | 'MATCH_DETAIL'
+  const [viewMode, setViewMode] = useState<'MATCH_LIST' | 'MATCH_DETAIL'>('MATCH_LIST')
+
+  // 3. MATCHES DATA
   const [matches, setMatches] = useState<WasitMatch[]>(DEFAULT_MATCHES)
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
-  const [matchStates, setMatchStates] = useState<Record<number, MatchState>>({})
-  const [isLoadingMatches, setIsLoadingMatches] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
 
-  // 3. STATE MODAL & TOAST
-  const [confirmModal, setConfirmModal] = useState<{
-    type: 'open_lock' | 'final_lock'
-    matchId: number
-  } | null>(null)
-  const [emergencyModal, setEmergencyModal] = useState<number | null>(null)
-  const [emergencyPin, setEmergencyPin] = useState('')
-  const [emergencyError, setEmergencyError] = useState('')
-  const [moveModal, setMoveModal] = useState<{
-    participant: WasitParticipant
-    fromMatchId: number
-  } | null>(null)
+  // 4. ACTIVE MATCH SESSION (GEMBOK, TIMER, & WASIT)
+  const [session, setSession] = useState<ActiveMatchSession>(INITIAL_MATCH_SESSION)
+  const [participants, setParticipants] = useState<WasitParticipant[]>([])
+  const [manualTimes, setManualTimes] = useState<Record<string, string>>({}) // bib -> 'MM:SS.CC'
+
+  // 5. STATUS MATCHES TRACKER (matchId -> 'LOCKED' | 'UNLOCKED' | 'FINAL')
+  const [matchStatuses, setMatchStatuses] = useState<Record<number, 'LOCKED' | 'UNLOCKED' | 'FINAL'>>({})
+
+  // 6. MODALS
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false)
+  const [selectedChildToMove, setSelectedChildToMove] = useState<{ matchId: number; participant: WasitParticipant } | null>(null)
   const [targetMatchId, setTargetMatchId] = useState<number>(1)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
-  const [customWebhookUrl, setCustomWebhookUrl] = useState('')
-  const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmission[]>([])
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+  const [moveError, setMoveError] = useState('')
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3500)
-  }, [])
+  const [emergencyModal, setEmergencyModal] = useState<'UNLOCK' | 'RESET_MATCH' | 'RESET_DB' | null>(null)
+  const [emergencyPin, setEmergencyPin] = useState('')
+  const [resetConfirmText, setResetConfirmText] = useState('')
+  const [emergencyError, setEmergencyError] = useState('')
 
-  // Fungsi simpan antrean offline
-  const saveToPendingQueue = useCallback((payload: PendingSubmission) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const currentMatch = matches[currentMatchIdx] || matches[0]
+
+  // =========================================================================
+  // LOAD MATCHES & SESSION INITIAL
+  // =========================================================================
+  const loadMatchesFromApi = useCallback(async () => {
     try {
-      const raw = localStorage.getItem('olimpiakids_pending_submissions')
-      const queue: PendingSubmission[] = raw ? JSON.parse(raw) : []
-      // Hapus jika sudah ada matchId yang sama
-      const filtered = queue.filter((item) => item.matchId !== payload.matchId)
-      filtered.push(payload)
-      localStorage.setItem('olimpiakids_pending_submissions', JSON.stringify(filtered))
-      setPendingSubmissions(filtered)
-    } catch (e) {
-      console.error('Gagal menyimpan ke pending queue:', e)
-    }
-  }, [])
-
-  // Fungsi flush antrean offline ke server (dengan lock guard agar tidak double-fire)
-  const isFlushingRef = React.useRef(false)
-  const flushPendingQueue = useCallback(async () => {
-    if (isFlushingRef.current) return
-    isFlushingRef.current = true
-
-    try {
-      const raw = localStorage.getItem('olimpiakids_pending_submissions')
-      if (!raw) return
-      let queue: PendingSubmission[] = []
-      try {
-        queue = JSON.parse(raw)
-      } catch {
-        return
-      }
-      if (!queue.length) return
-
-      const remaining: PendingSubmission[] = []
-      let successCount = 0
-
-      for (const item of queue) {
-        try {
-          const res = await fetch('/api/wasit/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item),
-          })
-          const data = await res.json()
-          if (data.ok) {
-            successCount++
-          } else {
-            remaining.push(item)
-          }
-        } catch {
-          remaining.push(item)
+      const res = await fetch('/api/wasit/matches?refresh=true')
+      if (res.ok) {
+        const json = await res.json()
+        if (json.matches && Array.isArray(json.matches)) {
+          setMatches(json.matches)
         }
       }
+    } catch {}
+  }, [])
 
-      if (remaining.length > 0) {
-        localStorage.setItem('olimpiakids_pending_submissions', JSON.stringify(remaining))
-        setPendingSubmissions(remaining)
-      } else {
-        localStorage.removeItem('olimpiakids_pending_submissions')
-        setPendingSubmissions([])
-      }
-
-      if (successCount > 0) {
-        showToast(`✅ ${successCount} hasil match offline berhasil disinkronkan ke Sheets!`, 'success')
-      }
-    } finally {
-      isFlushingRef.current = false
-    }
-  }, [showToast])
-
-  // 4. CEK SESSION AUTH & STORAGE LOCAL
-  useEffect(() => {
-    setIsOnline(navigator.onLine)
-    const handleOnline = () => {
-      setIsOnline(true)
-      flushPendingQueue()
-    }
-    const handleOffline = () => setIsOnline(false)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    const savedAuth = sessionStorage.getItem('olimpiakids_wasit_auth')
-    if (savedAuth) {
-      try {
-        const parsed = JSON.parse(savedAuth)
-        if (parsed.isAuthenticated) {
-          setIsAuthenticated(true)
-          setUserRole(parsed.role)
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    // Load state match dari localStorage (Offline First)
-    const savedStates = localStorage.getItem('olimpiakids_wasit_states')
-    if (savedStates) {
-      try {
-        setMatchStates(JSON.parse(savedStates))
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    const savedWebhook = localStorage.getItem('olimpiakids_apps_script_url')
-    if (savedWebhook) {
-      setCustomWebhookUrl(savedWebhook)
-    } else {
-      setCustomWebhookUrl('https://script.google.com/macros/s/AKfycbzW7iHQryhHG5Qw7-m3Kx-OGZ1RcykxdzCeQJIRE3slHSm-dirgVWSj5P_7WZQRJT0QCA/exec')
-    }
-
-    const rawQueue = localStorage.getItem('olimpiakids_pending_submissions')
-    if (rawQueue) {
-      try {
-        setPendingSubmissions(JSON.parse(rawQueue))
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [flushPendingQueue])
-
-  // 5. FETCH DATA MATCHES LIVE DARI API (SHEET)
-  const loadMatchesFromApi = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setIsLoadingMatches(true)
+  const loadSessionFromDb = useCallback(async () => {
     try {
-      const res = await fetch(`/api/wasit/matches${isRefresh ? '?refresh=true' : ''}`)
-      const data = await res.json()
-      if (data.ok && Array.isArray(data.matches)) {
-        setMatches(data.matches)
-
-        // Inisialisasi matchStates jika belum ada
-        setMatchStates((prev) => {
-          const next = { ...prev }
-          data.matches.forEach((m: WasitMatch) => {
-            const allScoredInSheet = m.participants.length > 0 && m.participants.every(p => p.urutan !== null && p.urutan !== '')
-            if (!next[m.id]) {
-              next[m.id] = {
-                status: allScoredInSheet ? 'final' : 'standby',
-                participants: m.participants,
-              }
-            } else if (isRefresh && next[m.id].status === 'standby') {
-              next[m.id] = {
-                ...next[m.id],
-                participants: m.participants,
-              }
+      const s = await getActiveSession()
+      if (s) {
+        setSession(s)
+        if (s.matchId) {
+          const idx = matches.findIndex((m) => m.id === s.matchId)
+          if (idx !== -1) setCurrentMatchIdx(idx)
+        }
+        if (s.participants && s.participants.length > 0) {
+          setParticipants(s.participants)
+        }
+        // Map splits to manualTimes
+        if (s.splits && s.splits.length > 0) {
+          const map: Record<string, string> = {}
+          s.participants.forEach((p, i) => {
+            if (s.splits[i] && p.status !== 'dnf') {
+              map[p.bib_number] = s.splits[i].timer
             }
           })
-          localStorage.setItem('olimpiakids_wasit_states', JSON.stringify(next))
-          return next
-        })
-
-        if (isRefresh) {
-          flushPendingQueue()
-          showToast('Data Match berhasil diperbarui dari Sheets!', 'success')
+          setManualTimes(map)
         }
       }
-    } catch (err) {
-      console.error('Gagal memuat matches:', err)
-      if (isRefresh) showToast('Gagal memuat data terbaru, menggunakan data lokal.', 'error')
-    } finally {
-      setIsLoadingMatches(false)
-    }
-  }, [showToast, flushPendingQueue])
+    } catch {}
+  }, [matches])
 
   useEffect(() => {
     loadMatchesFromApi()
-  }, [loadMatchesFromApi])
+    loadSessionFromDb()
+  }, [loadMatchesFromApi, loadSessionFromDb])
 
-  // Simpan setiap perubahan state match ke localStorage
-  const updateMatchState = useCallback((matchId: number, updater: (prev: MatchState) => MatchState) => {
-    setMatchStates((prev) => {
-      const current = prev[matchId] || {
-        status: 'standby',
-        participants: matches.find((m) => m.id === matchId)?.participants || [],
-      }
-      const updated = updater(current)
-      const next = { ...prev, [matchId]: updated }
-      localStorage.setItem('olimpiakids_wasit_states', JSON.stringify(next))
-      return next
-    })
-  }, [matches])
+  // Sync participants whenever currentMatch changes
+  useEffect(() => {
+    if (currentMatch && (!participants || participants.length === 0 || session.matchId !== currentMatch.id)) {
+      setParticipants(currentMatch.participants || [])
+    }
+  }, [currentMatchIdx, currentMatch, session.matchId, participants])
 
-  // DATA MATCH YANG SEDANG DILIHAT WASIT
-  const currentMatch = matches[currentMatchIdx] || matches[0]
-  const currentMatchState: MatchState = matchStates[currentMatch?.id] || {
-    status: 'standby',
-    participants: currentMatch?.participants || [],
-  }
-
-  // Keep latest wasit state in ref for sync handler without re-attaching listeners
-  const wasitStateRef = useRef({
-    currentMatch,
-    currentMatchIdx,
-    currentMatchState,
-  })
-  wasitStateRef.current = {
-    currentMatch,
-    currentMatchIdx,
-    currentMatchState,
-  }
-
-  // Realtime Broadcast Listener untuk Mirroring Wasit (HP <-> Laptop/Plasma)
+  // =========================================================================
+  // REALTIME WEBSOCKET SUBSCRIPTION
+  // =========================================================================
   useEffect(() => {
     const channel = getSyncChannel()
 
-    const handleWasitSync = ({ payload }: { payload: RealtimeWasitPayload }) => {
+    const handleSessionSync = ({ payload }: { payload: RealtimeSessionPayload }) => {
       if (!payload || payload.senderId === CLIENT_ID) return
-
-      if (payload.action === 'MATCH_SWITCH' && typeof payload.matchIdx === 'number') {
-        setCurrentMatchIdx(payload.matchIdx)
-      } else if (payload.action === 'REORDER' || payload.action === 'DNF') {
-        if (payload.matchId && payload.participants) {
-          updateMatchState(payload.matchId, (prev) => ({
-            ...prev,
-            participants: payload.participants as WasitParticipant[],
-          }))
-        }
-      } else if (payload.action === 'STATUS_CHANGE' && payload.matchId && payload.status) {
-        updateMatchState(payload.matchId, (prev) => ({
-          ...prev,
-          status: payload.status!,
-          participants: (payload.participants as WasitParticipant[]) || prev.participants,
-        }))
-      } else if (payload.action === 'REQUEST_SYNC') {
-        const snap = wasitStateRef.current
-        broadcastWasitEvent({
-          action: 'FULL_SYNC',
-          matchId: snap.currentMatch?.id,
-          matchIdx: snap.currentMatchIdx,
-          status: snap.currentMatchState.status,
-          participants: snap.currentMatchState.participants,
-        })
-      } else if (payload.action === 'FULL_SYNC') {
-        if (typeof payload.matchIdx === 'number') setCurrentMatchIdx(payload.matchIdx)
-        if (payload.matchId && payload.participants) {
-          updateMatchState(payload.matchId, (prev) => ({
-            ...prev,
-            status: payload.status || prev.status,
-            participants: payload.participants as WasitParticipant[],
-          }))
+      if (payload.session) {
+        setSession(payload.session)
+        if (payload.session.splits && payload.session.splits.length > 0) {
+          // Auto fill times from timer splits
+          setManualTimes((prev) => {
+            const next = { ...prev }
+            const activeFinisher = (payload.session.participants || []).filter((p) => p.status !== 'dnf')
+            payload.session.splits.forEach((sp, idx) => {
+              if (activeFinisher[idx] && !next[activeFinisher[idx].bib_number]) {
+                next[activeFinisher[idx].bib_number] = sp.timer
+              }
+            })
+            return next
+          })
         }
       }
     }
 
-    channel.on('broadcast', { event: 'wasit-sync' }, handleWasitSync)
+    channel.on('broadcast', { event: 'session-sync' }, handleSessionSync)
   }, [])
 
-  // Cek apakah ada match yang sedang UNLOCKED / ACTIVE saat ini
-  let activeRunningMatch: { id: number; title: string } | null = null
-  for (const [idStr, state] of Object.entries(matchStates)) {
-    if (state.status === 'active') {
-      const id = Number(idStr)
-      const matchInfo = matches.find((m) => m.id === id)
-      activeRunningMatch = { id, title: matchInfo?.title || `Match ${id}` }
-      break
-    }
-  }
-
-  // 6. HANDLER PIN LOGIN
+  // =========================================================================
+  // AUTH PIN SUBMIT
+  // =========================================================================
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (pinInput === '1234') {
       setIsAuthenticated(true)
-      setUserRole('referee')
-      sessionStorage.setItem('olimpiakids_wasit_auth', JSON.stringify({ isAuthenticated: true, role: 'referee' }))
+      setIsSupervisor(false)
       setPinError('')
-      showToast('Login Wasit Berhasil! Selamat bertugas.', 'success')
+      setViewMode('MATCH_LIST') // Sesuai aturan: awal login masuk ke list Match 1-12
     } else if (pinInput === '9999') {
       setIsAuthenticated(true)
-      setUserRole('supervisor')
-      sessionStorage.setItem('olimpiakids_wasit_auth', JSON.stringify({ isAuthenticated: true, role: 'supervisor' }))
+      setIsSupervisor(true)
       setPinError('')
-      showToast('Login Supervisor Aktif! Mode Darurat Tersedia.', 'success')
+      setViewMode('MATCH_LIST')
     } else {
-      setPinError('PIN salah! Hubungi Admin / Produser jika lupa PIN.')
-    }
-  }
-
-  // 7. REORDER PESERTA (DRAG & DROP)
-  const handleReorder = (newOrder: WasitParticipant[]) => {
-    if (currentMatchState.status !== 'active') return
-
-    const updatedItems = newOrder.map((p, idx) => ({
-      ...p,
-      position: idx + 1,
-    }))
-
-    updateMatchState(currentMatch.id, (prev) => ({
-      ...prev,
-      participants: updatedItems,
-    }))
-
-    broadcastWasitEvent({
-      action: 'REORDER',
-      matchId: currentMatch.id,
-      matchIdx: currentMatchIdx,
-      participants: updatedItems,
-    })
-  }
-
-  // 8. TOGGLE DNF (DID NOT FINISH / NANGIS / MOGOK)
-  const toggleDnf = (bibNumber: string) => {
-    if (currentMatchState.status !== 'active') return
-
-    updateMatchState(currentMatch.id, (prev) => {
-      const items = [...prev.participants]
-      const targetIdx = items.findIndex((p) => p.bib_number === bibNumber)
-      if (targetIdx === -1) return prev
-
-      const item = items[targetIdx]
-      const isNowDnf = item.status !== 'dnf'
-      item.status = isNowDnf ? 'dnf' : 'registered'
-
-      // Jika DNF, geser ke paling bawah
-      if (isNowDnf) {
-        items.splice(targetIdx, 1)
-        items.push(item)
-      }
-
-      const updatedItems = items.map((p, idx) => ({
-        ...p,
-        position: idx + 1,
-      }))
-
-      broadcastWasitEvent({
-        action: 'DNF',
-        matchId: currentMatch.id,
-        matchIdx: currentMatchIdx,
-        participants: updatedItems,
-      })
-
-      return { ...prev, participants: updatedItems }
-    })
-  }
-
-  // 9. PINDAH PESERTA KE MATCH LAIN
-  const handleMoveParticipant = () => {
-    if (!moveModal) return
-    const { participant, fromMatchId } = moveModal
-
-    // Hapus dari match asal
-    updateMatchState(fromMatchId, (prev) => {
-      const remaining = prev.participants.filter((p) => p.bib_number !== participant.bib_number)
-      return {
-        ...prev,
-        participants: remaining.map((p, idx) => ({ ...p, position: idx + 1 })),
-      }
-    })
-
-    // Tambah ke match tujuan
-    updateMatchState(targetMatchId, (prev) => {
-      const exists = prev.participants.some((p) => p.bib_number === participant.bib_number)
-      if (exists) return prev
-      const updated = [...prev.participants, { ...participant, position: prev.participants.length + 1 }]
-      return { ...prev, participants: updated }
-    })
-
-    showToast(`Peserta [${participant.bib_number}] dipindahkan ke Match ${targetMatchId}`, 'success')
-    setMoveModal(null)
-  }
-
-  // 10. BUKA KUNCI MATCH (START MATCH)
-  const handleOpenLock = (matchId: number) => {
-    if (activeRunningMatch && activeRunningMatch.id !== matchId) {
-      showToast(`Selesaikan & kunci ${activeRunningMatch.title} terlebih dahulu!`, 'error')
-      setConfirmModal(null)
-      return
-    }
-
-    updateMatchState(matchId, (prev) => ({
-      ...prev,
-      status: 'active',
-    }))
-    broadcastWasitEvent({
-      action: 'STATUS_CHANGE',
-      matchId,
-      matchIdx: currentMatchIdx,
-      status: 'active',
-    })
-    setConfirmModal(null)
-    showToast(`Match ${matchId} AKTIF! Silakan atur urutan finish anak.`, 'success')
-  }
-
-  // 11. KUNCI FINAL & KIRIM HASIL KE GOOGLE SHEETS
-  const handleFinalLock = async (matchId: number) => {
-    setIsSubmitting(true)
-    const matchObj = matches.find((m) => m.id === matchId)
-    const state = matchStates[matchId] || { participants: [] }
-
-    const payload: PendingSubmission = {
-      matchId,
-      matchTitle: matchObj?.title || `MATCH ${matchId}`,
-      results: state.participants.map((p, idx) => ({
-        position: idx + 1,
-        bib_number: p.bib_number,
-        name: p.name,
-        status: p.status || 'finished',
-      })),
-      refereePin: userRole === 'supervisor' ? '9999' : '1234',
-      webhookUrl: customWebhookUrl || undefined,
-      timestamp: new Date().toISOString(),
-    }
-
-    // Kirim ke API submit (yang akan forward ke Google Sheets)
-    try {
-      const res = await fetch('/api/wasit/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-      if (data.ok) {
-        showToast(`✅ Hasil ${payload.matchTitle} BERHASIL DIKUNCI & TERKIRIM!`, 'success')
-      } else {
-        saveToPendingQueue(payload)
-        showToast(`⚠️ Server sibuk: Hasil disimpan di HP dan akan dicoba kirim ulang otomatis.`, 'info')
-      }
-    } catch {
-      saveToPendingQueue(payload)
-      showToast('⚠️ Offline: Hasil disimpan di HP dan akan otomatis dikirim saat online.', 'info')
-    } finally {
-      // Tandai match sebagai FINAL
-      updateMatchState(matchId, (prev) => ({
-        ...prev,
-        status: 'final',
-        lockedAt: new Date().toISOString(),
-      }))
-      broadcastWasitEvent({
-        action: 'STATUS_CHANGE',
-        matchId,
-        matchIdx: currentMatchIdx,
-        status: 'final',
-        participants: state.participants,
-      })
-      setIsSubmitting(false)
-      setConfirmModal(null)
-
-      // Geser otomatis ke match berikutnya jika belum match terakhir
-      if (currentMatchIdx < matches.length - 1) {
-        setTimeout(() => {
-          const nextIdx = currentMatchIdx + 1
-          setCurrentMatchIdx(nextIdx)
-          broadcastWasitEvent({
-            action: 'MATCH_SWITCH',
-            matchIdx: nextIdx,
-            matchId: matches[nextIdx]?.id,
-          })
-        }, 800)
-      }
-    }
-  }
-
-  // 12. BUKA KUNCI DARURAT OLEH SUPERVISOR (MASTER PIN 9999)
-  const handleEmergencyUnlock = () => {
-    if (emergencyPin !== '9999') {
-      setEmergencyError('Master PIN salah! Hanya Supervisor yang berwenang.')
-      return
-    }
-
-    if (emergencyModal !== null) {
-      updateMatchState(emergencyModal, (prev) => ({
-        ...prev,
-        status: 'active',
-      }))
-      broadcastWasitEvent({
-        action: 'STATUS_CHANGE',
-        matchId: emergencyModal,
-        matchIdx: currentMatchIdx,
-        status: 'active',
-      })
-      showToast(`Kunci darurat Match ${emergencyModal} berhasil dibuka!`, 'success')
-      setEmergencyModal(null)
-      setEmergencyPin('')
-      setEmergencyError('')
+      setPinError('PIN salah! Hubungi Supervisor.')
     }
   }
 
   // =========================================================================
-  // RENDER: SCREEN LOGIN PIN JIKA BELUM AUTH
+  // PILIH MATCH DARI LIST
+  // =========================================================================
+  const selectMatch = (idx: number) => {
+    const target = matches[idx]
+    if (!target) return
+    setCurrentMatchIdx(idx)
+    setParticipants(target.participants || [])
+    setManualTimes({})
+
+    // Jika match ini belum aktif di session, set status LOCKED
+    if (session.matchId !== target.id) {
+      const newSession: ActiveMatchSession = {
+        matchId: target.id,
+        matchTitle: target.title,
+        status: matchStatuses[target.id] === 'FINAL' ? 'LOCKED_FINAL' : 'LOCKED',
+        participants: target.participants || [],
+        splits: [],
+        elapsedMs: 0,
+        startTime: null,
+        dnfList: [],
+        updatedAt: new Date().toISOString(),
+      }
+      setSession(newSession)
+      saveActiveSession(newSession)
+      broadcastSessionEvent({ action: 'SESSION_SYNC', session: newSession })
+    }
+
+    setViewMode('MATCH_DETAIL')
+  }
+
+  // =========================================================================
+  // BUKA GEMBOK MATCH (WASIT ADALAH MASTER)
+  // =========================================================================
+  const handleUnlockMatch = async () => {
+    const updated: ActiveMatchSession = {
+      ...session,
+      matchId: currentMatch.id,
+      matchTitle: currentMatch.title,
+      status: 'UNLOCKED',
+      participants: participants,
+      splits: [],
+      elapsedMs: 0,
+      startTime: null,
+      updatedAt: new Date().toISOString(),
+    }
+    setSession(updated)
+    setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'UNLOCKED' }))
+    await saveActiveSession(updated)
+    broadcastSessionEvent({ action: 'UNLOCK_MATCH', session: updated })
+    showToast('success', `🔓 Gembok ${currentMatch.title} berhasil DIBUKA! Meja Timer & Plasma kini aktif.`)
+  }
+
+  const handleLockMatchBack = async () => {
+    const updated: ActiveMatchSession = {
+      ...session,
+      status: 'LOCKED',
+      updatedAt: new Date().toISOString(),
+    }
+    setSession(updated)
+    setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'LOCKED' }))
+    await saveActiveSession(updated)
+    broadcastSessionEvent({ action: 'LOCK_MATCH', session: updated })
+    showToast('success', `🔒 ${currentMatch.title} dikembalikan ke status TERGEMBOK.`)
+  }
+
+  // =========================================================================
+  // REORDER PARTICIPANTS (URUTAN WASIT)
+  // =========================================================================
+  const handleReorder = (newOrder: WasitParticipant[]) => {
+    setParticipants(newOrder)
+    const updated: ActiveMatchSession = {
+      ...session,
+      participants: newOrder,
+      updatedAt: new Date().toISOString(),
+    }
+    setSession(updated)
+    saveActiveSession(updated)
+    broadcastSessionEvent({ action: 'REORDER_WASIT', session: updated })
+  }
+
+  const moveItem = (index: number, direction: 'UP' | 'DOWN') => {
+    const targetIndex = direction === 'UP' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= participants.length) return
+    const cloned = [...participants]
+    const temp = cloned[index]
+    cloned[index] = cloned[targetIndex]
+    cloned[targetIndex] = temp
+    handleReorder(cloned)
+  }
+
+  // =========================================================================
+  // TOGGLE DNF (MOGOK)
+  // =========================================================================
+  const handleToggleDnf = (bib: string) => {
+    const cloned = [...participants]
+    const idx = cloned.findIndex((p) => p.bib_number === bib)
+    if (idx === -1) return
+
+    const isCurrentDnf = cloned[idx].status === 'dnf'
+    cloned[idx] = {
+      ...cloned[idx],
+      status: isCurrentDnf ? 'registered' : 'dnf',
+    }
+
+    // Sortir: DNF selalu dilempar ke paling bawah
+    cloned.sort((a, b) => {
+      const aDnf = a.status === 'dnf'
+      const bDnf = b.status === 'dnf'
+      if (aDnf && !bDnf) return 1
+      if (!aDnf && bDnf) return -1
+      return 0
+    })
+
+    setParticipants(cloned)
+
+    const dnfBibs = cloned.filter((p) => p.status === 'dnf').map((p) => p.bib_number)
+    const updated: ActiveMatchSession = {
+      ...session,
+      participants: cloned,
+      dnfList: dnfBibs,
+      updatedAt: new Date().toISOString(),
+    }
+    setSession(updated)
+    saveActiveSession(updated)
+    broadcastSessionEvent({ action: 'DNF_WASIT', session: updated })
+
+    showToast(isCurrentDnf ? 'success' : 'error', `${bib} ${isCurrentDnf ? 'Batal DNF' : 'Ditandai DNF (Mogok)'}`)
+  }
+
+  // =========================================================================
+  // MANUAL TIME EDIT (WASIT BISA ISI & KOREKSI WAKTU MANUAL)
+  // =========================================================================
+  const handleManualTimeChange = (bib: string, val: string) => {
+    setManualTimes((prev) => ({
+      ...prev,
+      [bib]: val,
+    }))
+  }
+
+  // =========================================================================
+  // KUNCI & KIRIM HASIL KE LEADERBOARD (ATOMIC LOCK)
+  // =========================================================================
+  const handleFinalLock = async () => {
+    if (participants.length === 0) return
+    setIsSubmitting(true)
+
+    try {
+      // Gabungkan urutan wasit + catatan waktu (dari timer atau edit manual wasit)
+      const nonDnfParticipants = participants.filter((p) => p.status !== 'dnf')
+      const mergedResults = participants.map((p, idx) => {
+        const isDnf = p.status === 'dnf'
+        const customTime = manualTimes[p.bib_number] || ''
+        const splitTime = session.splits[idx] ? session.splits[idx].timer : ''
+        const finalTimer = isDnf ? 'DNF' : (customTime || splitTime || '--.--.--')
+
+        return {
+          position: isDnf ? 9999 : idx + 1,
+          bib_number: p.bib_number,
+          name: p.name,
+          status: isDnf ? 'dnf' : 'finished',
+          timer: finalTimer,
+        }
+      })
+
+      const res = await fetch('/api/wasit/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchId: currentMatch.id,
+          matchTitle: currentMatch.title,
+          results: mergedResults,
+          splits: session.splits,
+          refereePin: isSupervisor ? '9999' : '1234',
+        }),
+      })
+
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || 'Gagal mengunci hasil match')
+      }
+
+      // Update state lokal & session
+      const lockedSession: ActiveMatchSession = {
+        ...session,
+        status: 'LOCKED_FINAL',
+        participants: participants,
+        results: mergedResults,
+        splits: mergedResults
+          .filter((r) => r.status !== 'dnf')
+          .map((r, i) => ({
+            position: i + 1,
+            timer: r.timer,
+            elapsedMs: session.splits[i]?.elapsedMs || 0,
+            manualEdited: !!manualTimes[r.bib_number],
+          })),
+        updatedAt: new Date().toISOString(),
+        lockedAt: new Date().toISOString(),
+      }
+      setSession(lockedSession)
+      setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'FINAL' }))
+      broadcastSessionEvent({ action: 'LOCK_FINAL', session: lockedSession })
+
+      showToast('success', `🎉 ${currentMatch.title} BERHASIL DIKUNCI! Data menyatu di Plasma & Leaderboard.`)
+    } catch (err: unknown) {
+      showToast('error', err instanceof Error ? err.message : 'Terjadi kegagalan saat mengunci hasil.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // =========================================================================
+  // EMERGENCY OVERRIDE & RESET
+  // =========================================================================
+  const executeEmergencyAction = async () => {
+    if (emergencyPin !== '9999') {
+      setEmergencyError('PIN Supervisor salah! Butuh PIN 9999.')
+      return
+    }
+
+    if (emergencyModal === 'RESET_DB' && resetConfirmText !== 'RESET') {
+      setEmergencyError('Ketik "RESET" dengan huruf besar untuk konfirmasi!')
+      return
+    }
+
+    if (emergencyModal === 'UNLOCK') {
+      const unlockedSession: ActiveMatchSession = {
+        ...session,
+        status: 'UNLOCKED',
+        updatedAt: new Date().toISOString(),
+      }
+      setSession(unlockedSession)
+      setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'UNLOCKED' }))
+      await saveActiveSession(unlockedSession)
+      broadcastSessionEvent({ action: 'UNLOCK_MATCH', session: unlockedSession })
+      showToast('success', `Gembok ${currentMatch.title} berhasil dibuka ulang untuk koreksi.`)
+    } else if (emergencyModal === 'RESET_MATCH') {
+      await fetch('/api/wasit/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchId: currentMatch.id,
+          action: 'RESET_MATCH',
+          results: currentMatch.participants,
+          refereePin: '9999',
+        }),
+      })
+      const resetSession: ActiveMatchSession = {
+        ...INITIAL_MATCH_SESSION,
+        matchId: currentMatch.id,
+        matchTitle: currentMatch.title,
+        status: 'LOCKED',
+        participants: currentMatch.participants || [],
+      }
+      setSession(resetSession)
+      setParticipants(currentMatch.participants || [])
+      setManualTimes({})
+      setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'LOCKED' }))
+      await saveActiveSession(resetSession)
+      broadcastSessionEvent({ action: 'SESSION_SYNC', session: resetSession })
+      showToast('success', `Match ${currentMatch.id} berhasil direset bersih ke status LOCKED.`)
+    } else if (emergencyModal === 'RESET_DB') {
+      // Panggil reset database Google Sheets
+      await fetch(process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL || '', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'RESET_DATABASE' }),
+      }).catch(() => {})
+      showToast('success', 'Seluruh database berhasil direset bersih!')
+    }
+
+    setEmergencyModal(null)
+    setEmergencyPin('')
+    setResetConfirmText('')
+    setEmergencyError('')
+  }
+
+  // =========================================================================
+  // PINDAH PESERTA (MAKS 10 PER MATCH)
+  // =========================================================================
+  const openMoveModal = (p: WasitParticipant) => {
+    setSelectedChildToMove({ matchId: currentMatch.id, participant: p })
+    setTargetMatchId(currentMatch.id === 12 ? 1 : currentMatch.id + 1)
+    setMoveError('')
+    setIsMoveModalOpen(true)
+  }
+
+  const handleConfirmMove = async () => {
+    if (!selectedChildToMove) return
+
+    const targetMatch = matches.find((m) => m.id === targetMatchId)
+    if (!targetMatch) return
+
+    // Validasi aturan: Maksimal 10 anak per match!
+    if (targetMatch.participants && targetMatch.participants.length >= 10) {
+      setMoveError(`❌ Match ${targetMatchId} sudah penuh (${targetMatch.participants.length}/10 anak)! Maksimal 10 peserta per match.`)
+      return
+    }
+
+    // Pindahkan
+    const updatedMatches = matches.map((m) => {
+      if (m.id === selectedChildToMove.matchId) {
+        return {
+          ...m,
+          participants: m.participants.filter((p) => p.bib_number !== selectedChildToMove.participant.bib_number),
+        }
+      }
+      if (m.id === targetMatchId) {
+        return {
+          ...m,
+          participants: [...m.participants, { ...selectedChildToMove.participant, position: m.participants.length + 1 }],
+        }
+      }
+      return m
+    })
+
+    setMatches(updatedMatches)
+
+    // Update current participants jika match aktif yang dipengaruhi
+    const activeM = updatedMatches.find((m) => m.id === currentMatch.id)
+    if (activeM) setParticipants(activeM.participants)
+
+    // Simpan ke Supabase race_events 998 via API
+    await fetch('/api/wasit/matches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matches: updatedMatches }),
+    })
+
+    setIsMoveModalOpen(false)
+    setSelectedChildToMove(null)
+    showToast('success', `Anak ${selectedChildToMove.participant.bib_number} berhasil dipindahkan ke Match ${targetMatchId}!`)
+  }
+
+  const showToast = (type: 'success' | 'error', text: string) => {
+    setToastMessage({ type, text })
+    setTimeout(() => setToastMessage(null), 4000)
+  }
+
+  // =========================================================================
+  // RENDER: SCREEN LOGIN JIKA BELUM AUTH
   // =========================================================================
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-900 via-blue-950 to-slate-950 flex flex-col items-center justify-center p-4">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-sm bg-white/10 backdrop-blur-xl border-2 border-white/20 rounded-3xl p-6 sm:p-8 shadow-2xl text-center"
         >
-          <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-3xl">👶</span>
+          <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg text-slate-950 font-black text-2xl">
+            👑
           </div>
-
           <h1 className="font-display font-black text-2xl text-white tracking-wide uppercase">
-            WASIT OLIMPIAKIDS
+            WASIT MASTER ARENA
           </h1>
           <p className="text-xs text-blue-200 mt-1 mb-6">
-            Panel Pengatur Urutan Finish Wasit Tunggal
+            Pusat Kendali Match, Gembok, & Validasi Hasil
           </p>
 
           <form onSubmit={handlePinSubmit} className="space-y-4">
-            <div>
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Masukkan 4 Digit PIN"
-                className="w-full bg-white/20 border-2 border-white/30 rounded-2xl px-4 py-3 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-blue-300/50 placeholder:tracking-normal placeholder:text-sm focus:outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/20 transition-all"
-                autoFocus
-              />
-            </div>
-
-            {pinError && (
-              <p className="text-xs font-bold text-red-400 animate-shake">
-                {pinError}
-              </p>
-            )}
-
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              placeholder="Masukkan 4 Digit PIN"
+              className="w-full bg-white/20 border-2 border-white/30 rounded-2xl px-4 py-3 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-blue-300/50 placeholder:tracking-normal placeholder:text-sm focus:outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/20 transition-all"
+              autoFocus
+            />
+            {pinError && <p className="text-xs font-bold text-red-400">{pinError}</p>}
             <button
               type="submit"
               className="w-full bg-gradient-to-b from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-amber-950 font-display font-black text-base py-3.5 px-6 rounded-2xl shadow-[0_4px_0_rgba(180,83,9,1)] active:translate-y-1 active:shadow-none transition-all"
             >
-              MASUK KE DASHBOARD WASIT
+              MASUK KE PANEL WASIT
             </button>
           </form>
-
           <div className="mt-6 pt-4 border-t border-white/10 text-[11px] text-blue-300/70">
-            PIN Default Wasit: <code className="text-yellow-300 font-bold">1234</code> | Supervisor: <code className="text-yellow-300 font-bold">9999</code>
+            PIN Wasit: <code className="text-yellow-300 font-bold">1234</code> | Supervisor: <code className="text-yellow-300 font-bold">9999</code>
           </div>
         </motion.div>
       </div>
@@ -778,463 +565,511 @@ export default function WasitPage() {
   }
 
   // =========================================================================
-  // RENDER: DASHBOARD UTAMA WASIT (MOBILE FIRST CAROUSEL)
+  // VIEW 1: MATCH LIST VIEW (LIST MATCH 1 - 12 MEMANJANG KE BAWAH)
   // =========================================================================
-  const isMatchLocked = currentMatchState.status === 'final'
-  const isMatchActive = currentMatchState.status === 'active'
-  const isMatchStandby = currentMatchState.status === 'standby'
-
-  // Tombol navigasi match di-disable jika match saat ini sedang active/berjalan
-  const isNavDisabled = activeRunningMatch !== null && activeRunningMatch.id === currentMatch.id
-
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-between selection:bg-yellow-400 selection:text-blue-950">
-      {/* 1. TOP HEADER & NAVBAR */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-3 py-2.5">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🍼</span>
-            <div>
-              <div className="font-display font-black text-sm text-white tracking-wide uppercase leading-none">
-                WASIT OLIMPIAKIDS
-              </div>
-              <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1 mt-0.5">
-                <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-red-400 animate-pulse'}`} />
-                <span>{isOnline ? 'Online' : 'Offline (Tersimpan Lokal)'}</span>
-                {userRole === 'supervisor' && (
-                  <span className="ml-1 bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-black text-[9px]">
-                    SUPERVISOR
-                  </span>
-                )}
+  if (viewMode === 'MATCH_LIST') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans">
+        {/* Top Navbar */}
+        <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+          <div className="max-w-xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xl">👑</span>
+              <div>
+                <h1 className="font-display font-black text-base sm:text-lg text-white uppercase tracking-wider leading-none">
+                  WASIT MASTER
+                </h1>
+                <span className="text-[10px] text-amber-400 font-bold">
+                  {isSupervisor ? 'SUPERVISOR MODE' : 'PANEL JURI ARENA'}
+                </span>
               </div>
             </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSelectedChildToMove(null)
+                  setIsMoveModalOpen(true)
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 shadow-sm"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Atur Peserta</span>
+              </button>
+
+              <button
+                onClick={() => setIsAuthenticated(false)}
+                className="p-2 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-xl border border-slate-700"
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Content: List Match 1 - 12 */}
+        <main className="flex-1 max-w-xl w-full mx-auto p-3 sm:p-4 space-y-2.5">
+          <div className="flex items-center justify-between px-1 mb-2">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+              PILIH MATCH UNTUK DIKONTROL:
+            </span>
+            <span className="text-xs font-bold text-amber-400">12 Match Tersedia</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => loadMatchesFromApi(true)}
-              disabled={isLoadingMatches}
-              className="p-2 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-xl border border-slate-700 text-slate-300 text-xs flex items-center gap-1 transition-all"
-              title="Tarik data terbaru dari Google Sheets"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMatches ? 'animate-spin' : ''}`} />
-            </button>
+          <div className="space-y-2.5">
+            {matches.map((m, idx) => {
+              const isMatchCurrentSession = session.matchId === m.id
+              const isFinal = matchStatuses[m.id] === 'FINAL' || (isMatchCurrentSession && session.status === 'LOCKED_FINAL')
+              const isUnlocked = isMatchCurrentSession && (session.status === 'UNLOCKED' || session.status === 'RUNNING' || session.status === 'TIMER_COMPLETED')
 
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="p-2 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-xl border border-slate-700 text-slate-300 text-xs flex items-center gap-1 transition-all relative"
-              title="Pengaturan Webhook Google Sheets"
-            >
-              <Settings className="w-3.5 h-3.5" />
-              {customWebhookUrl && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-1 right-1" />
-              )}
-            </button>
+              let statusBadge = (
+                <span className="text-[11px] font-bold text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-400" />
+                  <span>Tergembok</span>
+                </span>
+              )
 
-            <button
-              onClick={() => {
-                sessionStorage.removeItem('olimpiakids_wasit_auth')
-                setIsAuthenticated(false)
-              }}
-              className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-300 px-2.5 py-2 rounded-xl font-bold border border-red-500/30 transition-all"
-            >
-              Keluar
-            </button>
+              if (isFinal) {
+                statusBadge = (
+                  <span className="text-[11px] font-black text-amber-300 bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1">
+                    <span>👑</span>
+                    <span>Selesai (Final)</span>
+                  </span>
+                )
+              } else if (isUnlocked) {
+                statusBadge = (
+                  <span className="text-[11px] font-black text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/50 flex items-center gap-1 animate-pulse">
+                    <Unlock className="w-3 h-3 text-emerald-400" />
+                    <span>Sedang Terbuka</span>
+                  </span>
+                )
+              }
+
+              return (
+                <motion.div
+                  key={m.id}
+                  onClick={() => selectMatch(idx)}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between gap-3 shadow-md ${
+                    isUnlocked
+                      ? 'bg-gradient-to-r from-emerald-950/40 to-slate-900 border-emerald-500/60 ring-2 ring-emerald-500/20'
+                      : isFinal
+                      ? 'bg-slate-900/90 border-amber-500/30'
+                      : 'bg-slate-900/70 hover:bg-slate-800/80 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-mono font-black text-lg shrink-0 shadow-inner ${
+                        isUnlocked
+                          ? 'bg-emerald-500 text-slate-950'
+                          : isFinal
+                          ? 'bg-amber-400 text-slate-950'
+                          : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      {m.id}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="font-display font-black text-sm sm:text-base text-white tracking-wide uppercase truncate">
+                        {m.title}
+                      </div>
+                      <div className="text-xs text-slate-400 font-bold mt-0.5">
+                        {m.participants ? m.participants.length : 0} Peserta Terdaftar
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    {statusBadge}
+                    <MoveRight className="w-4 h-4 text-slate-500" />
+                  </div>
+                </motion.div>
+              )
+            })}
           </div>
+        </main>
+
+        {/* Global Toast */}
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-2xl flex items-center gap-2 ${
+                toastMessage.type === 'success'
+                  ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
+                  : 'bg-red-500 text-white shadow-red-500/20'
+              }`}
+            >
+              <span>{toastMessage.type === 'success' ? '✅' : '⚠️'}</span>
+              <span>{toastMessage.text}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    )
+  }
+
+  // =========================================================================
+  // VIEW 2: MATCH DETAIL VIEW (GEMBOK, ATUR URUTAN, MANUAL EDIT, & KUNCI)
+  // =========================================================================
+  const isLocked = session.status === 'LOCKED'
+  const isFinal = session.status === 'LOCKED_FINAL'
+  const isUnlockedOrActive = session.status === 'UNLOCKED' || session.status === 'RUNNING' || session.status === 'TIMER_COMPLETED'
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans pb-16">
+      {/* Top Header */}
+      <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 py-2.5">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <button
+            onClick={() => setViewMode('MATCH_LIST')}
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 shadow-sm"
+          >
+            <ChevronLeft className="w-4 h-4 text-amber-400" />
+            <span>Daftar Match</span>
+          </button>
+
+          <div className="text-center">
+            <h1 className="font-display font-black text-sm sm:text-base text-white tracking-wide uppercase">
+              {currentMatch.title}
+            </h1>
+            <span className="text-[10px] text-amber-400 font-bold">
+              {participants.length} Peserta (Maks 10)
+            </span>
+          </div>
+
+          <button
+            onClick={() => openMoveModal(participants[0])}
+            disabled={participants.length === 0}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl border border-slate-700"
+            title="Atur Peserta Match Ini"
+          >
+            <Users className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
-      {/* PENDING SUBMISSION / OFFLINE QUEUE BANNER */}
-      {pendingSubmissions.length > 0 && (
-        <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-3 py-1.5 text-center text-[11px] font-bold text-yellow-300 flex items-center justify-between gap-1.5">
-          <div className="flex items-center gap-1.5 truncate">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-yellow-400" />
-            <span className="truncate">{pendingSubmissions.length} hasil match tersimpan di HP (menunggu kirim).</span>
-          </div>
-          <button
-            onClick={flushPendingQueue}
-            className="shrink-0 bg-yellow-400 hover:bg-yellow-300 text-amber-950 font-black px-2 py-0.5 rounded text-[10px] active:scale-95 transition-all"
-          >
-            Kirim Sekarang
-          </button>
-        </div>
-      )}
-
-      {/* 3. CAROUSEL SELECTOR: MATCH 1 DARI 12 */}
-      <div className="w-full max-w-md mx-auto px-3 pt-3">
-        <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-2.5 flex items-center justify-between shadow-sm">
-          <button
-            onClick={() => {
-              const nextIdx = Math.max(0, currentMatchIdx - 1)
-              setCurrentMatchIdx(nextIdx)
-              broadcastWasitEvent({
-                action: 'MATCH_SWITCH',
-                matchIdx: nextIdx,
-                matchId: matches[nextIdx]?.id,
-              })
-            }}
-            disabled={currentMatchIdx === 0 || isNavDisabled}
-            className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-white transition-all"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-
-          <div className="text-center px-2 flex-1 min-w-0">
-            <div className="text-[11px] font-bold text-yellow-400 uppercase tracking-wider">
-              {currentMatch?.title || `MATCH ${currentMatchIdx + 1}`}
-            </div>
-            <div className="flex items-center justify-center gap-1.5 mt-0.5">
-              <span className="text-xs font-black text-slate-300">
-                Match {currentMatchIdx + 1} dari {matches.length}
-              </span>
-              <span>•</span>
-              <span className="text-xs text-slate-400">
-                {currentMatchState.participants.length} Bayi
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              const nextIdx = Math.min(matches.length - 1, currentMatchIdx + 1)
-              setCurrentMatchIdx(nextIdx)
-              broadcastWasitEvent({
-                action: 'MATCH_SWITCH',
-                matchIdx: nextIdx,
-                matchId: matches[nextIdx]?.id,
-              })
-            }}
-            disabled={currentMatchIdx === matches.length - 1 || isNavDisabled}
-            className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-white transition-all"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* STATUS GEMBOK MATCH */}
-        <div className="mt-2.5 flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            {isMatchActive && (
-              <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                SEDANG DINILAI
-              </span>
-            )}
-            {isMatchStandby && (
-              <span className="inline-flex items-center gap-1.5 bg-slate-800 text-slate-400 border border-slate-700 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider">
-                <Lock className="w-3 h-3" />
-                STANDBY (TERKUNCI)
-              </span>
-            )}
-            {isMatchLocked && (
-              <span className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider">
-                <CheckCircle2 className="w-3 h-3 text-amber-400" />
-                FINAL & SELESAI
-              </span>
-            )}
-          </div>
-
-          {/* EMERGENCY UNLOCK UNTUK SUPERVISOR JIKA SUDAH FINAL */}
-          {isMatchLocked && (
-            <button
-              onClick={() => setEmergencyModal(currentMatch.id)}
-              className="text-[10px] text-amber-400/80 hover:text-amber-300 underline font-bold"
-            >
-              Buka Darurat
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 4. LIST PESERTA (DRAG & DROP REORDER) */}
-      <main className="flex-1 w-full max-w-md mx-auto px-3 py-3 overflow-y-auto">
-        <Reorder.Group
-          axis="y"
-          values={currentMatchState.participants}
-          onReorder={handleReorder}
-          className="space-y-2"
+      {/* Main Content */}
+      <main className="flex-1 max-w-xl w-full mx-auto p-3 sm:p-4 space-y-3">
+        {/* GEMBOK BANNER (MASTER CONTROL WASIT) */}
+        <div
+          className={`p-3.5 sm:p-4 rounded-2xl border transition-all ${
+            isLocked
+              ? 'bg-slate-900/95 border-amber-500/60 shadow-lg'
+              : isFinal
+              ? 'bg-amber-950/20 border-amber-400/50'
+              : 'bg-emerald-950/20 border-emerald-500/50'
+          }`}
         >
-          {currentMatchState.participants.map((p, index) => (
-            <ParticipantCard
-              key={p.bib_number}
-              participant={p}
-              index={index}
-              isMatchActive={isMatchActive}
-              onToggleDnf={toggleDnf}
-              onOpenMoveModal={(participant) => {
-                const firstAvailable = matches.find(
-                  (m) => m.id !== currentMatch.id && matchStates[m.id]?.status !== 'final'
-                )
-                if (firstAvailable) setTargetMatchId(firstAvailable.id)
-                setMoveModal({ participant, fromMatchId: currentMatch.id })
-              }}
-            />
-          ))}
-        </Reorder.Group>
-      </main>
-
-      {/* 5. STICKY BOTTOM ACTION BAR */}
-      <footer className="sticky bottom-0 z-30 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3">
-        <div className="max-w-md mx-auto">
-          {/* JIKA MATCH STANDBY: TAMPILKAN TOMBOL BUKA GEMBOK */}
-          {isMatchStandby && (
-            <button
-              onClick={() => setConfirmModal({ type: 'open_lock', matchId: currentMatch.id })}
-              className="w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 text-white font-display font-black text-sm py-3.5 px-6 rounded-2xl shadow-[0_4px_0_rgba(29,78,216,1)] active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 transition-all"
-            >
-              <Unlock className="w-5 h-5 text-yellow-300" />
-              <span>BUKA GEMBOK & NILAI MATCH INI</span>
-            </button>
-          )}
-
-          {/* JIKA MATCH ACTIVE: TAMPILKAN TOMBOL KUNCI FINAL */}
-          {isMatchActive && (
-            <button
-              onClick={() => setConfirmModal({ type: 'final_lock', matchId: currentMatch.id })}
-              disabled={isSubmitting}
-              className="w-full bg-gradient-to-b from-yellow-400 via-amber-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-amber-950 font-display font-black text-base py-3.5 px-6 rounded-2xl shadow-[0_4px_0_rgba(180,83,9,1)] active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 transition-all"
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>MENGIRIM KE GOOGLE SHEETS...</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-5 h-5" />
-                  <span>KUNCI & KIRIM HASIL FINAL</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* JIKA MATCH FINAL / TERKUNCI */}
-          {isMatchLocked && (
-            <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl py-3 px-4 text-center">
-              <div className="font-display font-black text-xs text-amber-400 uppercase flex items-center justify-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>HASIL MATCH TELAH FINAL</span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                  isLocked ? 'bg-amber-400 text-slate-950' : isFinal ? 'bg-amber-400 text-slate-950' : 'bg-emerald-400 text-slate-950'
+                }`}
+              >
+                {isLocked ? <Lock className="w-5 h-5" /> : isFinal ? '👑' : <Unlock className="w-5 h-5" />}
+              </div>
+              <div>
+                <div className="font-display font-black text-xs sm:text-sm text-white uppercase tracking-wider">
+                  {isLocked
+                    ? 'STATUS: TERGEMBOK (STANDBY)'
+                    : isFinal
+                    ? 'STATUS: HASIL TERKUNCI & TERKIRIM'
+                    : 'STATUS: GEMBOK TERBUKA (AKTIF)'}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {isLocked
+                    ? 'Timer & Plasma terkunci. Buka gembok untuk memulai match.'
+                    : isFinal
+                    ? 'Hasil urutan & timer menyatu di Plasma & Sheets.'
+                    : 'Timer aktif dan siap START saat pluit ditiup.'}
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Tombol Gembok Action */}
+            {isLocked && (
+              <button
+                onClick={handleUnlockMatch}
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 text-slate-950 font-display font-black text-xs rounded-xl shadow-md active:scale-95 transition-all shrink-0"
+              >
+                BUKA GEMBOK
+              </button>
+            )}
+
+            {isUnlockedOrActive && (
+              <button
+                onClick={handleLockMatchBack}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-slate-700 shrink-0"
+              >
+                Kunci Balik
+              </button>
+            )}
+
+            {isFinal && (
+              <button
+                onClick={() => setEmergencyModal('UNLOCK')}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 shrink-0"
+              >
+                Buka Ulang
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* LIST PESERTA & URUTAN POSISI */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+              URUTAN POSISI ARENA:
+            </span>
+            <span className="text-[11px] font-bold text-slate-500">
+              Tahan & Geser atau gunakan Panah
+            </span>
+          </div>
+
+          <Reorder.Group
+            axis="y"
+            values={participants}
+            onReorder={handleReorder}
+            className="space-y-2"
+          >
+            {participants.map((p, idx) => {
+              const position = idx + 1
+              const isDnf = p.status === 'dnf'
+              const currentTimerVal = manualTimes[p.bib_number] || (session.splits[idx] ? session.splits[idx].timer : '')
+
+              return (
+                <Reorder.Item
+                  key={p.bib_number}
+                  value={p}
+                  className={`p-3 rounded-2xl border transition-all flex flex-col gap-2 ${
+                    isDnf
+                      ? 'bg-red-950/30 border-red-500/50'
+                      : position === 1
+                      ? 'bg-slate-900 border-amber-400/60 shadow-sm'
+                      : 'bg-slate-900/80 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2.5">
+                    {/* Rank Badge + Drag */}
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div
+                        className={`w-8 h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
+                          isDnf
+                            ? 'bg-red-600 text-white'
+                            : position === 1
+                            ? 'bg-yellow-400 text-slate-950'
+                            : position === 2
+                            ? 'bg-slate-200 text-slate-950'
+                            : position === 3
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-slate-800 text-slate-300 border border-slate-700'
+                        }`}
+                      >
+                        {isDnf ? 'DNF' : `#${position}`}
+                      </div>
+
+                      {/* Nomor Dada Raksasa + Nama */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span
+                            className={`font-mono font-black text-2xl sm:text-3xl leading-none ${
+                              isDnf ? 'text-red-300' : 'text-amber-300'
+                            }`}
+                          >
+                            {p.bib_number}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase">
+                            {p.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Up / Down buttons + DNF button */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => moveItem(idx, 'UP')}
+                        disabled={idx === 0 || isFinal}
+                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg border border-slate-700"
+                        title="Naikkan Posisi"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => moveItem(idx, 'DOWN')}
+                        disabled={idx === participants.length - 1 || isFinal}
+                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg border border-slate-700"
+                        title="Turunkan Posisi"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleToggleDnf(p.bib_number)}
+                        disabled={isFinal}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                          isDnf
+                            ? 'bg-red-600 text-white border-red-400'
+                            : 'bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-700'
+                        }`}
+                        title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
+                      >
+                        DNF
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Manual Time Input Row (WASIT BISA EDIT & ISI WAKTU MANUAL) */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                    <span className="text-slate-400 font-bold flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Catatan Waktu:</span>
+                    </span>
+
+                    {isDnf ? (
+                      <span className="font-mono font-black text-red-400 text-xs px-2 py-0.5 rounded bg-red-950/40 border border-red-800/40">
+                        DNF (Mogok - Tanpa Waktu)
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={currentTimerVal}
+                          onChange={(e) => handleManualTimeChange(p.bib_number, e.target.value)}
+                          disabled={isFinal}
+                          placeholder="00:00.00"
+                          className="w-28 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-center font-mono font-black text-sm text-amber-300 tracking-wider focus:outline-none"
+                        />
+                        <span className="text-[10px] text-slate-500">MM:SS.CC</span>
+                      </div>
+                    )}
+                  </div>
+                </Reorder.Item>
+              )
+            })}
+          </Reorder.Group>
+        </div>
+      </main>
+
+      {/* STICKY BOTTOM ACTION BAR */}
+      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 shadow-2xl">
+        <div className="max-w-xl mx-auto flex items-center gap-2.5">
+          {/* Tombol Kunci Hasil Utama */}
+          <button
+            onClick={handleFinalLock}
+            disabled={isSubmitting || isLocked || isFinal}
+            className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 disabled:opacity-40 text-slate-950 font-display font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+          >
+            {isSubmitting ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Lock className="w-4 h-4 text-slate-950" />
+            )}
+            <span>
+              {isFinal ? 'HASIL TELAH DIKUNCI' : 'KUNCI & KIRIM HASIL KE LEADERBOARD'}
+            </span>
+          </button>
+
+          {/* Reset Match Button */}
+          <button
+            onClick={() => setEmergencyModal('RESET_MATCH')}
+            className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700"
+            title="Reset Match Ini"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
       </footer>
 
-      {/* ===================================================================== */}
-      {/* 6. MODAL KONFIRMASI (BUKA GEMBOK / KUNCI FINAL) */}
-      {/* ===================================================================== */}
+      {/* MODAL: PINDAH PESERTA (MAKS 10 PER MATCH) */}
       <AnimatePresence>
-        {confirmModal && (
+        {isMoveModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-3xl p-5 shadow-2xl text-center"
+              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4"
             >
-              {confirmModal.type === 'open_lock' ? (
-                <>
-                  <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <Unlock className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-display font-black text-lg text-white uppercase">
-                    Buka Kunci Match {confirmModal.matchId}?
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                    Halaman match lain akan <b>dikunci sementara</b> sampai Anda menyelesaikan dan mengunci match ini, agar Anda fokus pada balapan.
-                  </p>
-                  <div className="mt-5 flex gap-2">
-                    <button
-                      onClick={() => setConfirmModal(null)}
-                      className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-xs"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={() => handleOpenLock(confirmModal.matchId)}
-                      className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs"
-                    >
-                      Buka Sekarang
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-12 h-12 bg-yellow-500/20 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-display font-black text-lg text-white uppercase">
-                    Kunci Hasil Final Match {confirmModal.matchId}?
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-1">
-                    Pastikan urutan finish sudah benar:
-                  </p>
-
-                  {/* Summary 3 Besar (NO MEDAL ICONS) */}
-                  <div className="my-3 bg-slate-900/80 border border-slate-700 rounded-2xl p-3 text-left text-xs space-y-1.5">
-                    <div className="flex items-center gap-2 text-white font-bold truncate">
-                      <span className="w-5 h-5 rounded-md bg-yellow-400 text-amber-950 font-black text-xs flex items-center justify-center shrink-0">1</span>
-                      <span className="truncate">
-                        [{currentMatchState.participants[0]?.bib_number}] {currentMatchState.participants[0]?.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-200 font-bold truncate">
-                      <span className="w-5 h-5 rounded-md bg-slate-200 text-slate-900 font-black text-xs flex items-center justify-center shrink-0">2</span>
-                      <span className="truncate">
-                        [{currentMatchState.participants[1]?.bib_number}] {currentMatchState.participants[1]?.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-300 font-bold truncate">
-                      <span className="w-5 h-5 rounded-md bg-amber-600 text-white font-black text-xs flex items-center justify-center shrink-0">3</span>
-                      <span className="truncate">
-                        [{currentMatchState.participants[2]?.bib_number}] {currentMatchState.participants[2]?.name}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-amber-400 font-bold leading-tight">
-                    ⚠️ Setelah dikunci, hasil ini bersifat FINAL dan akan langsung dikirim ke Google Sheets.
-                  </p>
-
-                  <div className="mt-5 flex gap-2">
-                    <button
-                      onClick={() => setConfirmModal(null)}
-                      className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-xs"
-                    >
-                      Koreksi Dulu
-                    </button>
-                    <button
-                      onClick={() => handleFinalLock(confirmModal.matchId)}
-                      disabled={isSubmitting}
-                      className="flex-1 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-amber-950 font-black text-xs shadow-md"
-                    >
-                      {isSubmitting ? 'Mengirim...' : 'Yakin, Kunci Final!'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ===================================================================== */}
-      {/* 7. MODAL BUKA KUNCI DARURAT OLEH SUPERVISOR (PIN 9999) */}
-      {/* ===================================================================== */}
-      <AnimatePresence>
-        {emergencyModal !== null && (
-          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm bg-slate-800 border-2 border-amber-500/60 rounded-3xl p-5 shadow-2xl text-center"
-            >
-              <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <h3 className="font-display font-black text-lg text-white uppercase">
-                Buka Kunci Darurat (Supervisor)
-              </h3>
-              <p className="text-xs text-slate-300 mt-1 mb-4">
-                Masukkan Master PIN Supervisor untuk membuka kembali Match {emergencyModal}.
-              </p>
-
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                value={emergencyPin}
-                onChange={(e) => setEmergencyPin(e.target.value)}
-                placeholder="Master PIN (4 Digit)"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-center text-xl font-black tracking-widest text-white focus:outline-none focus:border-amber-400 mb-2"
-                autoFocus
-              />
-
-              {emergencyError && (
-                <p className="text-xs font-bold text-red-400 mb-2">
-                  {emergencyError}
-                </p>
-              )}
-
-              <div className="flex gap-2 mt-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-display font-black text-base text-white uppercase flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span>Pindahkan Peserta Antar Match</span>
+                </h3>
                 <button
-                  onClick={() => {
-                    setEmergencyModal(null)
-                    setEmergencyPin('')
-                    setEmergencyError('')
+                  onClick={() => setIsMoveModalOpen(false)}
+                  className="text-slate-400 hover:text-white text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Pilih Anak yang Mau Dipindah */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300">Pilih Peserta:</label>
+                <select
+                  value={selectedChildToMove?.participant.bib_number || ''}
+                  onChange={(e) => {
+                    const bib = e.target.value
+                    // cari di match saat ini
+                    const p = currentMatch.participants.find((item) => item.bib_number === bib)
+                    if (p) setSelectedChildToMove({ matchId: currentMatch.id, participant: p })
                   }}
-                  className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-xs"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
                 >
-                  Batal
-                </button>
-                <button
-                  onClick={handleEmergencyUnlock}
-                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-xs"
-                >
-                  Buka Kunci
-                </button>
+                  {currentMatch.participants.map((p) => (
+                    <option key={p.bib_number} value={p.bib_number}>
+                      {p.bib_number} - {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
-      {/* ===================================================================== */}
-      {/* 8. MODAL PINDAH PESERTA KE MATCH LAIN */}
-      {/* ===================================================================== */}
-      <AnimatePresence>
-        {moveModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-3xl p-5 shadow-2xl text-center"
-            >
-              <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <MoveRight className="w-6 h-6" />
-              </div>
-              <h3 className="font-display font-black text-lg text-white uppercase">
-                Pindahkan Peserta
-              </h3>
-              <p className="text-xs text-slate-300 mt-1 mb-4">
-                Pindahkan <b>[{moveModal.participant.bib_number}] {moveModal.participant.name}</b> ke match lain:
-              </p>
-
-              <div className="text-left mb-4">
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                  PILIH MATCH TUJUAN:
-                </label>
+              {/* Pilih Match Tujuan */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300">Pindah ke Match Tujuan:</label>
                 <select
                   value={targetMatchId}
                   onChange={(e) => setTargetMatchId(Number(e.target.value))}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-400"
                 >
                   {matches.map((m) => {
-                    const isCurrent = m.id === moveModal.fromMatchId
-                    const isFinal = matchStates[m.id]?.status === 'final'
-                    const isDisabled = isCurrent || isFinal
+                    const count = m.participants ? m.participants.length : 0
+                    const isFull = count >= 10
                     return (
-                      <option key={m.id} value={m.id} disabled={isDisabled}>
-                        {m.title} {isCurrent ? '(Match Saat Ini)' : isFinal ? '(Sudah Final / Selesai)' : ''}
+                      <option key={m.id} value={m.id} disabled={m.id === currentMatch.id}>
+                        {m.title} ({count}/10 peserta) {isFull ? '— PENUH' : ''}
                       </option>
                     )
                   })}
                 </select>
               </div>
 
-              <div className="flex gap-2">
+              {moveError && (
+                <div className="p-2.5 bg-red-950/40 border border-red-500/40 text-red-300 rounded-xl text-xs font-bold">
+                  {moveError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
-                  onClick={() => setMoveModal(null)}
-                  className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-xs"
+                  onClick={() => setIsMoveModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
                 >
                   Batal
                 </button>
                 <button
-                  onClick={handleMoveParticipant}
-                  className="flex-1 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-amber-950 font-black text-xs shadow-md"
+                  onClick={handleConfirmMove}
+                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-md"
                 >
                   Konfirmasi Pindah
                 </button>
@@ -1244,72 +1079,80 @@ export default function WasitPage() {
         )}
       </AnimatePresence>
 
-      {/* ===================================================================== */}
-      {/* 8.5. MODAL SETTINGS WEBHOOK GOOGLE SHEETS */}
-      {/* ===================================================================== */}
+      {/* MODAL: EMERGENCY OVERRIDE & RESET PIN */}
       <AnimatePresence>
-        {showSettingsModal && (
+        {emergencyModal && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-3xl p-5 shadow-2xl"
+              className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4"
             >
-              <div className="w-12 h-12 bg-yellow-400/20 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Settings className="w-6 h-6" />
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <h3 className="font-display font-black text-base text-white uppercase">
+                  {emergencyModal === 'UNLOCK'
+                    ? 'Buka Ulang Kunci Match'
+                    : emergencyModal === 'RESET_MATCH'
+                    ? 'Reset Match Ini'
+                    : 'Reset Seluruh Database'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Aksi sensitif ini membutuhkan otorisasi Master PIN Supervisor.
+                </p>
               </div>
-              <h3 className="font-display font-black text-lg text-white uppercase text-center">
-                Pengaturan Google Sheets
-              </h3>
-              <p className="text-xs text-slate-300 mt-1 mb-4 text-center">
-                Hubungkan tombol Kunci Final langsung ke spreadsheet Anda secara realtime.
-              </p>
 
-              <div className="space-y-3 mb-4 text-left">
+              {emergencyModal === 'RESET_DB' && (
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                    URL WEB APP APPS SCRIPT:
+                  <label className="text-[11px] font-bold text-red-400 mb-1 block">
+                    Ketik "RESET" untuk konfirmasi:
                   </label>
                   <input
-                    type="url"
-                    value={customWebhookUrl}
-                    onChange={(e) => setCustomWebhookUrl(e.target.value)}
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-yellow-400"
+                    type="text"
+                    value={resetConfirmText}
+                    onChange={(e) => setResetConfirmText(e.target.value)}
+                    placeholder="RESET"
+                    className="w-full bg-slate-950 border border-red-500/50 rounded-xl px-3 py-2 text-center text-sm font-black text-red-300"
                   />
                 </div>
+              )}
 
-                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/60 text-[11px] text-slate-400 space-y-1">
-                  <p className="font-bold text-yellow-400">💡 Cara Pasang Web App (Cukup Sekali):</p>
-                  <p>1. Di Google Sheet, klik menu <b>Extensions → Apps Script</b>.</p>
-                  <p>2. Paste isi kode <b>Code.gs</b> lalu klik <b>Deploy → New Deployment</b>.</p>
-                  <p>3. Pilih tipe <b>Web app</b> (Who has access: <b>Anyone</b>) lalu copy URL yang didapat ke kotak di atas.</p>
-                </div>
+              <div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={emergencyPin}
+                  onChange={(e) => setEmergencyPin(e.target.value)}
+                  placeholder="Master PIN (4 Digit)"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-center text-lg font-black tracking-widest text-white"
+                  autoFocus
+                />
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowSettingsModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-bold text-xs"
-                >
-                  Tutup
-                </button>
+              {emergencyError && (
+                <p className="text-xs font-bold text-red-400 text-center">{emergencyError}</p>
+              )}
+
+              <div className="flex items-center gap-2 pt-2">
                 <button
                   onClick={() => {
-                    const cleaned = customWebhookUrl.trim()
-                    if (cleaned) {
-                      localStorage.setItem('olimpiakids_apps_script_url', cleaned)
-                      showToast('URL Webhook berhasil disimpan!', 'success')
-                    } else {
-                      localStorage.removeItem('olimpiakids_apps_script_url')
-                      showToast('URL Webhook dikosongkan (menggunakan env default).', 'info')
-                    }
-                    setShowSettingsModal(false)
+                    setEmergencyModal(null)
+                    setEmergencyPin('')
+                    setEmergencyError('')
                   }}
-                  className="flex-1 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-amber-950 font-black text-xs shadow-md"
+                  className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold"
                 >
-                  Simpan URL
+                  Batal
+                </button>
+                <button
+                  onClick={executeEmergencyAction}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black shadow-lg"
+                >
+                  Eksekusi
                 </button>
               </div>
             </motion.div>
@@ -1317,24 +1160,21 @@ export default function WasitPage() {
         )}
       </AnimatePresence>
 
-      {/* ===================================================================== */}
-      {/* 9. TOAST NOTIFIKASI MELAYANG */}
-      {/* ===================================================================== */}
+      {/* Global Toast */}
       <AnimatePresence>
-        {toast && (
+        {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl shadow-2xl border text-xs font-black flex items-center gap-2 select-none ${
-              toast.type === 'success'
-                ? 'bg-emerald-600 text-white border-emerald-400'
-                : toast.type === 'error'
-                ? 'bg-red-600 text-white border-red-400'
-                : 'bg-blue-600 text-white border-blue-400'
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-2xl flex items-center gap-2 ${
+              toastMessage.type === 'success'
+                ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
+                : 'bg-red-500 text-white shadow-red-500/20'
             }`}
           >
-            <span>{toast.message}</span>
+            <span>{toastMessage.type === 'success' ? '✅' : '⚠️'}</span>
+            <span>{toastMessage.text}</span>
           </motion.div>
         )}
       </AnimatePresence>

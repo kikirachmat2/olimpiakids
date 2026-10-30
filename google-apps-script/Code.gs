@@ -349,15 +349,18 @@ function doPost(e) {
     var payload = JSON.parse(contents);
 
     // =========================================================================
-    // AKSI 1: SUBMIT URUTAN DARI WASIT LAPANGAN (/wasit)
+    // AKSI 1: SUBMIT KUNCI MATCH DARI WASIT MASTER (/wasit)
     // =========================================================================
-    if (payload.action === 'SUBMIT_URUTAN') {
+    if (payload.action === 'SUBMIT_KUNCI_MATCH' || payload.action === 'SUBMIT_URUTAN') {
       var results = payload.results || [];
+      var splits = payload.splits || [];
       var matchId = payload.matchId;
       var ss = SpreadsheetApp.getActiveSpreadsheet();
 
       var resultMap = {};
       var statusMap = {};
+      var timerMap = {};
+
       results.forEach(function(item) {
         if (item.bib_number) {
           var cleanBib = item.bib_number.trim().toUpperCase();
@@ -366,10 +369,13 @@ function doPost(e) {
           if (item.status === 'dns') val = 'DNS';
           resultMap[cleanBib] = val;
           statusMap[cleanBib] = item.status || 'finished';
+          if (item.timer && item.timer !== '--.--.--') {
+            timerMap[cleanBib] = item.timer;
+          }
         }
       });
 
-      // 1. Baca split timer dari tab TIMER untuk match ini (jika sudah ada)
+      // 1. Tulis atau baca split timer dari tab TIMER untuk match ini
       var timerSheet = ss.getSheetByName('TIMER');
       var splitMapByPosition = {};
       if (timerSheet) {
@@ -382,15 +388,29 @@ function doPost(e) {
             break;
           }
         }
+
         if (matchRowIdx !== -1) {
-          var headerR = matchRowIdx + 1;
-          for (var s = 0; s < results.length; s++) {
-            var dataR = headerR + 1 + s;
-            if (dataR < timerVals.length) {
-              // Kolom B adalah TIMER
-              var tVal = String(timerVals[dataR][1] || '').trim();
-              if (tVal && tVal !== '--.--.--') {
-                splitMapByPosition[s + 1] = tVal;
+          var headerR = matchRowIdx + 1; // Baris header (No. | TIMER)
+
+          // Jika ada payload splits langsung dari Wasit (Kunci Match), tulis ke tab TIMER
+          if (splits && splits.length > 0) {
+            for (var sp = 0; sp < splits.length; sp++) {
+              var splitRow = headerR + 1 + sp;
+              if (splitRow < timerVals.length) {
+                var sTimer = splits[sp].timer || '';
+                timerSheet.getRange(splitRow + 1, 2).setValue(sTimer);
+                splitMapByPosition[sp + 1] = sTimer;
+              }
+            }
+          } else {
+            // Baca split yang sudah ada sebelumnya
+            for (var s = 0; s < results.length; s++) {
+              var dataR = headerR + 1 + s;
+              if (dataR < timerVals.length) {
+                var tVal = String(timerVals[dataR][1] || '').trim();
+                if (tVal && tVal !== '--.--.--') {
+                  splitMapByPosition[s + 1] = tVal;
+                }
               }
             }
           }
@@ -399,7 +419,7 @@ function doPost(e) {
 
       var totalUpdated = 0;
 
-      // 2. Update WASIT / MASTER WASIT (Kolom VALID atau URUTAN)
+      // 2. Update WASIT (Kolom VALID atau URUTAN)
       var masterWasitSheet = ss.getSheetByName('WASIT') || ss.getSheetByName('MASTER WASIT');
       if (masterWasitSheet) {
         var mwData = masterWasitSheet.getDataRange().getValues();
@@ -428,29 +448,7 @@ function doPost(e) {
         }
       }
 
-      // 3. Update WASIT 1, WASIT 2, WASIT 3 (Kolom URUTAN)
-      ['WASIT 1', 'WASIT 2', 'WASIT 3'].forEach(function(shName) {
-        var sh = ss.getSheetByName(shName);
-        if (!sh) return;
-        var data = sh.getDataRange().getValues();
-        var colBib = 1;
-        var colUrutan = 3; // Kolom D
-        for (var r = 0; r < Math.min(data.length, 4); r++) {
-          for (var c = 0; c < data[r].length; c++) {
-            var h = String(data[r][c]).trim().toUpperCase();
-            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
-            if (h === 'URUTAN') colUrutan = c;
-          }
-        }
-        for (var i = 0; i < data.length; i++) {
-          var bib = String(data[i][colBib]).trim().toUpperCase();
-          if (bib && Object.prototype.hasOwnProperty.call(resultMap, bib)) {
-            sh.getRange(i + 1, colUrutan + 1).setValue(resultMap[bib]);
-          }
-        }
-      });
-
-      // 4. Update MASTER DATABASE (Kolom URUTAN, TIMER, REMARKS)
+      // 3. Update MASTER DATABASE (Kolom URUTAN, TIMER, REMARKS)
       var masterDbSheet = ss.getSheetByName('MASTER DATABASE');
       if (masterDbSheet) {
         var dbData = masterDbSheet.getDataRange().getValues();
@@ -490,9 +488,14 @@ function doPost(e) {
                 masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('NOT QUALIFIED');
               }
 
-              // Pasangkan TIMER dari tab TIMER jika tersedia
-              if (!isNaN(numPos) && splitMapByPosition[numPos]) {
-                masterDbSheet.getRange(i + 1, colTimer + 1).setValue(splitMapByPosition[numPos]);
+              // Pasangkan TIMER: dari manual edit jika ada, atau dari split posisi
+              var assignedTimer = timerMap[bib];
+              if (!assignedTimer && !isNaN(numPos) && splitMapByPosition[numPos]) {
+                assignedTimer = splitMapByPosition[numPos];
+              }
+
+              if (assignedTimer) {
+                masterDbSheet.getRange(i + 1, colTimer + 1).setValue(assignedTimer);
               }
             }
           }
@@ -504,12 +507,12 @@ function doPost(e) {
       try { lock.releaseLock(); } catch(e) {}
       lock = null;
 
-      // Sinkronkan ke Supabase & TV
+      // Sinkronkan ke Supabase & Leaderboard
       var syncResult = runSync_(true, true);
 
       return ContentService.createTextOutput(JSON.stringify({
         ok: true,
-        message: 'Berhasil mencatat hasil wasit Match ' + matchId + ' (' + (syncResult.message || '') + ')',
+        message: 'Berhasil mengunci hasil Match ' + matchId + ' (' + (syncResult.message || '') + ')',
         matchId: payload.matchId,
         matchTitle: payload.matchTitle
       })).setMimeType(ContentService.MimeType.JSON);

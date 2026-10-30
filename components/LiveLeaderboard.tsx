@@ -22,6 +22,11 @@ export default function LiveLeaderboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [logoError, setLogoError] = useState(false)
 
+  // Jeda suspense 10 detik sebelum update klasemen diterapkan (Pakem 10s)
+  const [suspenseCountdown, setSuspenseCountdown] = useState<number | null>(null)
+  const pendingDataRef = React.useRef<LeaderboardItem[] | null>(null)
+  const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null)
+
   const previousRanksRef = React.useRef<Map<string, number>>(new Map())
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const celebrationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
@@ -188,8 +193,60 @@ export default function LiveLeaderboard() {
       if (raceRes.data) {
         setActiveRace(raceRes.data)
         const boardRes = await getLeaderboard(raceRes.data.id)
-        if (!boardRes.error) {
-          applyLeaderboardUpdate(boardRes.data || [])
+        if (!boardRes.error && boardRes.data) {
+          const nextData = boardRes.data
+
+          // A. Initial load: langsung terapkan tanpa jeda
+          if (previousRanksRef.current.size === 0) {
+            applyLeaderboardUpdate(nextData)
+            return
+          }
+
+          // B. Deteksi perubahan signifikan (ada hasil baru yang dicatat / waktu berubah)
+          const currentBoard = leaderboardRef.current
+          let hasSignificantChange = false
+          for (const item of nextData) {
+            const cur = currentBoard.find((c) => c.bib_number === item.bib_number)
+            const hadTime = cur && cur.duration_ms !== null && cur.duration_ms !== undefined
+            const hasTime = item.duration_ms !== null && item.duration_ms !== undefined
+            if ((!hadTime && hasTime) || (hadTime && hasTime && cur.duration_ms !== item.duration_ms)) {
+              hasSignificantChange = true
+              break
+            }
+            if (cur && cur.finish_time !== item.finish_time) {
+              hasSignificantChange = true
+              break
+            }
+          }
+
+          if (hasSignificantChange) {
+            pendingDataRef.current = nextData
+            // Mulai countdown 10 detik jika belum ada yang berjalan
+            if (!countdownIntervalRef.current) {
+              setSuspenseCountdown(10)
+              let count = 10
+              countdownIntervalRef.current = setInterval(() => {
+                count--
+                if (count > 0) {
+                  setSuspenseCountdown(count)
+                } else {
+                  if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current)
+                    countdownIntervalRef.current = null
+                  }
+                  setSuspenseCountdown(null)
+                  if (pendingDataRef.current) {
+                    applyLeaderboardUpdate(pendingDataRef.current)
+                    pendingDataRef.current = null
+                  }
+                }
+              }, 1000)
+            }
+          } else if (!countdownIntervalRef.current) {
+            // Jika tidak ada perubahan waktu tanding dan tidak sedang suspense, sinkronkan minor
+            setLeaderboard(nextData)
+            leaderboardRef.current = nextData
+          }
         }
       } else {
         setActiveRace(null)
@@ -256,6 +313,7 @@ export default function LiveLeaderboard() {
       clearInterval(interval)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
     }
   }, [loadLeaderboardData, triggerTestCelebration])
 
@@ -304,7 +362,26 @@ export default function LiveLeaderboard() {
         {/* 3/4 BAGIAN: JUDUL LOMBA ATAU TOAST SELEBRASI */}
         <div className="col-span-3 min-w-0">
           <AnimatePresence mode="wait">
-            {activeToast ? (
+            {suspenseCountdown !== null ? (
+              <motion.div
+                key="toast-suspense"
+                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 6 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className="w-full rounded-xl sm:rounded-full py-1.5 sm:py-2.5 md:py-2.5 lg:py-3 px-2 sm:px-4 md:px-6 border-[2.5px] sm:border-[3.5px] border-amber-300 shadow-xl text-center relative overflow-hidden select-none bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-white ring-4 ring-yellow-400/80 animate-pulse"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12 translate-x-[-150%] animate-[shimmer_1.5s_infinite]" />
+                <div className="font-display font-black text-xs sm:text-base md:text-lg lg:text-xl xl:text-2xl tracking-wide uppercase leading-none drop-shadow-sm flex items-center justify-center gap-2">
+                  <span className="text-base sm:text-2xl animate-spin shrink-0">⏱️</span>
+                  <span className="truncate">HASIL MATCH SELESAI • UPDATE KLASEMEN DALAM:</span>
+                  <span className="text-yellow-200 text-base sm:text-2xl font-mono font-black underline shrink-0">
+                    {suspenseCountdown}s
+                  </span>
+                  <span className="text-base sm:text-2xl animate-bounce shrink-0">🔥</span>
+                </div>
+              </motion.div>
+            ) : activeToast ? (
               <motion.div
                 key="toast-active"
                 initial={{ opacity: 0, scale: 0.95, y: -6 }}

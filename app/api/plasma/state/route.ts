@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { DEFAULT_MATCHES, WasitParticipant } from '@/lib/wasitDefaults'
+import { ActiveMatchSession, INITIAL_MATCH_SESSION, getActiveSession, saveActiveSession } from '@/lib/sessionStore'
 
 export interface PlasmaState {
   currentMatchIdx: number
   currentMatchId: number
+  session: ActiveMatchSession
   wasit: {
     status: 'standby' | 'active' | 'final'
     participants: WasitParticipant[]
@@ -21,10 +23,10 @@ export interface PlasmaState {
   version: number
 }
 
-// In-memory global state cache for active plasma session
 let plasmaState: PlasmaState = {
   currentMatchIdx: 0,
   currentMatchId: DEFAULT_MATCHES[0]?.id || 1,
+  session: INITIAL_MATCH_SESSION,
   wasit: {
     status: 'standby',
     participants: DEFAULT_MATCHES[0]?.participants || [],
@@ -43,14 +45,28 @@ let plasmaState: PlasmaState = {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    data: plasmaState,
-  }, {
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  // Coba ambil session persistent dari Supabase jika memory kosong
+  try {
+    const dbSession = await getActiveSession()
+    if (dbSession && dbSession.matchId) {
+      plasmaState.session = dbSession
+      plasmaState.currentMatchId = dbSession.matchId
+      plasmaState.currentMatchIdx = Math.max(0, dbSession.matchId - 1)
+    }
+  } catch {}
+
+  return NextResponse.json(
+    {
+      ok: true,
+      data: plasmaState,
+      session: plasmaState.session,
     },
-  })
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    }
+  )
 }
 
 export async function POST(request: Request) {
@@ -58,56 +74,26 @@ export async function POST(request: Request) {
     const body = await request.json()
     const nowIso = new Date().toISOString()
 
-    // 0. Reset State Total
-    if (body.action === 'RESET' || body.reset === true) {
-      plasmaState = {
-        currentMatchIdx: 0,
-        currentMatchId: DEFAULT_MATCHES[0]?.id || 1,
-        wasit: {
-          status: 'standby',
-          participants: DEFAULT_MATCHES[0]?.participants || [],
-          updatedAt: nowIso,
-        },
-        timer: {
-          status: 'standby',
-          isRunning: false,
-          isPaused: false,
-          startTime: null,
-          elapsedMs: 0,
-          splits: [],
-          updatedAt: nowIso,
-        },
-        version: plasmaState.version + 1,
+    // 1. Session Sync
+    if (body.session) {
+      plasmaState.session = {
+        ...plasmaState.session,
+        ...body.session,
+        updatedAt: nowIso,
       }
-      return NextResponse.json({ ok: true, version: plasmaState.version, data: plasmaState })
+      plasmaState.currentMatchId = body.session.matchId || plasmaState.currentMatchId
+      plasmaState.currentMatchIdx = Math.max(0, plasmaState.currentMatchId - 1)
+
+      // Simpan ke Supabase race_events (id: 999) secara background
+      saveActiveSession(plasmaState.session).catch(() => {})
     }
 
-    // 1. Match Switch
-    if (typeof body.matchIdx === 'number') {
-      plasmaState.currentMatchIdx = body.matchIdx
-      if (body.matchId) {
-        plasmaState.currentMatchId = body.matchId
-      } else if (DEFAULT_MATCHES[body.matchIdx]) {
-        plasmaState.currentMatchId = DEFAULT_MATCHES[body.matchIdx].id
-      }
-    }
-
-    // 2. Wasit Update
+    // 2. Legacy wasit/timer update fallback
     if (body.wasit) {
-      plasmaState.wasit = {
-        ...plasmaState.wasit,
-        ...body.wasit,
-        updatedAt: nowIso,
-      }
+      plasmaState.wasit = { ...plasmaState.wasit, ...body.wasit, updatedAt: nowIso }
     }
-
-    // 3. Timer Update
     if (body.timer) {
-      plasmaState.timer = {
-        ...plasmaState.timer,
-        ...body.timer,
-        updatedAt: nowIso,
-      }
+      plasmaState.timer = { ...plasmaState.timer, ...body.timer, updatedAt: nowIso }
     }
 
     plasmaState.version++
@@ -116,6 +102,7 @@ export async function POST(request: Request) {
       ok: true,
       version: plasmaState.version,
       data: plasmaState,
+      session: plasmaState.session,
     })
   } catch (err: unknown) {
     return NextResponse.json(
@@ -124,4 +111,3 @@ export async function POST(request: Request) {
     )
   }
 }
-
