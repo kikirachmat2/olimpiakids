@@ -402,9 +402,9 @@ export default function PlasmaDisplayPage() {
       {/* =========================================================================
           TOP BROADCAST BAR (CLEAN, 100% BEBAS DARI DATA SAMPAH)
       ========================================================================= */}
-      <header className="bg-slate-900/95 border-b border-slate-800/80 px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 shadow-2xl">
+      <header className="bg-slate-900/95 border-b border-slate-800/80 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0 shadow-2xl">
         <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black text-xl sm:text-2xl shadow-[0_0_20px_rgba(251,191,36,0.5)] shrink-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black text-xl sm:text-2xl shadow-[0_0_20px_rgba(251,191,36,0.5)] shrink-0">
             🏆
           </div>
           <div>
@@ -433,37 +433,22 @@ export default function PlasmaDisplayPage() {
               <span>FINAL & SELESAI</span>
             </div>
           )}
-          {!isArenaActive && !isArenaFinal && (
-            <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider">
-              <span>STANDBY</span>
-            </div>
-          )}
-
-          {/* Fullscreen Button [F] */}
-          <button
-            onClick={toggleFullscreen}
-            className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all shadow-md group"
-            title="Toggle Fullscreen (Hotkey: F)"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4 text-amber-300" /> : <Maximize2 className="w-4 h-4 text-amber-300" />}
-            <span className="font-mono font-black text-xs sm:text-sm px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-400 group-hover:border-amber-400/50">F</span>
-          </button>
         </div>
       </header>
 
       {/* =========================================================================
-          DUAL SPLIT SCREEN: LEFT = WASIT, RIGHT = TIMER
+          DUAL SPLIT SCREEN: LEFT = WASIT, RIGHT = TIMER (100% FIT NO SCROLL)
       ========================================================================= */}
-      <main className="flex-1 p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 overflow-hidden">
+      <main className="flex-1 p-2 sm:p-3 grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 overflow-hidden min-h-0">
         {/* =======================================================================
             PANEL KIRI: WASIT DISPLAY (URUTAN JUARA / NOMOR DADA GEDE BANGET)
         ======================================================================= */}
-        <section className="bg-slate-900/80 border border-slate-800/90 rounded-3xl p-3.5 sm:p-4 flex flex-col justify-between shadow-2xl relative overflow-hidden backdrop-blur-md">
+        <section className="bg-slate-900/80 border border-slate-800/90 rounded-2xl sm:rounded-3xl p-3 sm:p-3.5 flex flex-col shadow-2xl relative overflow-hidden backdrop-blur-md min-h-0">
           {/* Header Panel Wasit */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-xl">🏃</span>
-              <h2 className="font-display font-black text-sm sm:text-base text-white uppercase tracking-wider">
+              <span className="text-lg sm:text-xl">🏃</span>
+              <h2 className="font-display font-black text-xs sm:text-sm md:text-base text-white uppercase tracking-wider">
                 URUTAN POSISI ARENA
               </h2>
             </div>
@@ -478,47 +463,42 @@ export default function PlasmaDisplayPage() {
                 Terkunci Final
               </span>
             )}
-            {currentWasit.status === 'standby' && (
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-800 px-2.5 py-0.5 rounded-full">
-                Standby
-              </span>
-            )}
           </div>
 
-          {/* List Peserta (View Only, Nomor Dada GEDE BANGET & DNF BAR MERAH) */}
-          <div className="flex-1 my-2 overflow-y-auto space-y-2 pr-1">
-            <AnimatePresence>
+          {/* List Peserta (100% Fit Vertikal, Tanpa Scroll, Smooth Layout Slide) */}
+          <div className="flex-1 min-h-0 flex flex-col gap-1 sm:gap-1.5 pt-1.5 overflow-hidden">
+            <AnimatePresence mode="popLayout">
               {sortedParticipants.map((p, idx) => {
                 const position = idx + 1
                 const isDnf = p.status === 'dnf'
 
                 let rankBadge = (
-                  <div className="w-9 h-9 rounded-xl font-black text-sm flex items-center justify-center bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 max-h-[90%] rounded-lg sm:rounded-xl font-black text-xs sm:text-sm flex items-center justify-center bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
                     {position}
                   </div>
                 )
 
                 if (isDnf) {
                   rankBadge = (
-                    <div className="w-9 h-9 rounded-xl font-black text-xs flex items-center justify-center bg-red-600 text-white border border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)] shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 max-h-[90%] rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs flex items-center justify-center bg-red-600 text-white border border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)] shrink-0">
                       DNF
                     </div>
                   )
                 } else if (position === 1) {
                   rankBadge = (
-                    <div className="w-9 h-9 rounded-xl font-black text-base flex items-center justify-center bg-gradient-to-tr from-yellow-400 to-amber-300 text-slate-950 shadow-[0_0_15px_rgba(250,204,21,0.5)] shrink-0 ring-2 ring-yellow-400/60">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 max-h-[90%] rounded-lg sm:rounded-xl font-black text-xs sm:text-sm flex items-center justify-center bg-gradient-to-tr from-yellow-400 to-amber-300 text-slate-950 shadow-[0_0_15px_rgba(250,204,21,0.5)] shrink-0 ring-2 ring-yellow-400/60">
                       1
                     </div>
                   )
                 } else if (position === 2) {
                   rankBadge = (
-                    <div className="w-9 h-9 rounded-xl font-black text-base flex items-center justify-center bg-gradient-to-tr from-slate-200 to-white text-slate-900 shadow-md shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 max-h-[90%] rounded-lg sm:rounded-xl font-black text-xs sm:text-sm flex items-center justify-center bg-gradient-to-tr from-slate-200 to-white text-slate-900 shadow-md shrink-0">
                       2
                     </div>
                   )
                 } else if (position === 3) {
                   rankBadge = (
-                    <div className="w-9 h-9 rounded-xl font-black text-base flex items-center justify-center bg-gradient-to-tr from-amber-600 to-amber-500 text-white shadow-md shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 max-h-[90%] rounded-lg sm:rounded-xl font-black text-xs sm:text-sm flex items-center justify-center bg-gradient-to-tr from-amber-600 to-amber-500 text-white shadow-md shrink-0">
                       3
                     </div>
                   )
@@ -528,11 +508,14 @@ export default function PlasmaDisplayPage() {
                   <motion.div
                     key={p.bib_number}
                     layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{
+                      layout: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+                      opacity: { duration: 0.2 },
+                    }}
+                    className={`flex-1 min-h-0 flex items-center justify-between px-3 sm:px-4 py-1 rounded-xl sm:rounded-2xl border transition-colors ${
                       isDnf
                         ? 'bg-gradient-to-r from-red-950/80 via-red-900/60 to-red-950/80 border-2 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
                         : position === 1
@@ -540,33 +523,31 @@ export default function PlasmaDisplayPage() {
                         : 'bg-slate-800/70 border-slate-700/70'
                     }`}
                   >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       {rankBadge}
 
                       {/* NOMOR DADA GEDE BANGET + NAMA JELAS */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`font-mono font-black text-3xl sm:text-4xl lg:text-5xl tracking-wider leading-none ${
-                              isDnf ? 'text-red-300' : 'text-amber-300'
-                            }`}
-                          >
-                            {p.bib_number}
-                          </span>
-                        </div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-200 truncate mt-1 uppercase tracking-wide">
+                      <div className="min-w-0 flex-1 flex items-baseline gap-2.5">
+                        <span
+                          className={`font-mono font-black text-2xl sm:text-3xl lg:text-4xl xl:text-5xl tracking-wider leading-none shrink-0 ${
+                            isDnf ? 'text-red-300' : 'text-amber-300'
+                          }`}
+                        >
+                          {p.bib_number}
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase tracking-wide">
                           {p.name}
-                        </div>
+                        </span>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
                       {isDnf ? (
-                        <span className="text-xs font-black text-white uppercase bg-red-600 px-3 py-1 rounded-lg border border-red-400 shadow-sm">
+                        <span className="text-[10px] sm:text-xs font-black text-white uppercase bg-red-600 px-2.5 py-0.5 rounded-lg border border-red-400 shadow-sm">
                           DNF (MOGOK)
                         </span>
                       ) : (
-                        <span className="text-xs font-extrabold text-slate-400 uppercase bg-slate-950/60 px-2.5 py-1 rounded-lg border border-slate-800">
+                        <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase bg-slate-950/60 px-2.5 py-0.5 rounded-lg border border-slate-800">
                           Posisi #{position}
                         </span>
                       )}
@@ -576,23 +557,17 @@ export default function PlasmaDisplayPage() {
               })}
             </AnimatePresence>
           </div>
-
-          {/* Footer Wasit */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-bold shrink-0">
-            <span>{sortedParticipants.length} Peserta</span>
-            <span className="text-amber-300">Posisi 1 = Juara 1</span>
-          </div>
         </section>
 
         {/* =======================================================================
             PANEL KANAN: TIMER DISPLAY (STOPWATCH RESMI & URUTAN SPLIT LAP)
         ======================================================================= */}
-        <section className="bg-slate-900/80 border border-slate-800/90 rounded-3xl p-3.5 sm:p-4 flex flex-col justify-between shadow-2xl relative overflow-hidden backdrop-blur-md">
+        <section className="bg-slate-900/80 border border-slate-800/90 rounded-2xl sm:rounded-3xl p-3 sm:p-3.5 flex flex-col shadow-2xl relative overflow-hidden backdrop-blur-md min-h-0">
           {/* Header Panel Timer */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-xl">⏱️</span>
-              <h2 className="font-display font-black text-sm sm:text-base text-white uppercase tracking-wider">
+              <span className="text-lg sm:text-xl">⏱️</span>
+              <h2 className="font-display font-black text-xs sm:text-sm md:text-base text-white uppercase tracking-wider">
                 STOPWATCH RESMI
               </h2>
             </div>
@@ -604,32 +579,27 @@ export default function PlasmaDisplayPage() {
             )}
             {isPaused && (
               <span className="text-[11px] font-black uppercase tracking-wider text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 px-2.5 py-0.5 rounded-full">
-                Dijeda (Paused)
+                Dijeda
               </span>
             )}
-            {!isRunning && !isPaused && currentTimer.status === 'final' && (
+            {currentTimer.status === 'final' && !isRunning && !isPaused && (
               <span className="text-[11px] font-black uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
                 Final & Selesai
               </span>
             )}
-            {!isRunning && !isPaused && currentTimer.status !== 'final' && (
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-800 px-2.5 py-0.5 rounded-full">
-                Standby
-              </span>
-            )}
           </div>
 
-          {/* STOPWATCH MASTER NEON DISPLAY (SUPER BESAR & CLEAN) */}
-          <div className="my-2.5 shrink-0">
-            <div className="bg-slate-950/90 border-2 border-slate-800 rounded-3xl p-4 text-center shadow-inner relative overflow-hidden">
-              <div className="font-mono font-black text-5xl sm:text-6xl lg:text-7xl xl:text-8xl text-amber-300 tracking-tight leading-none drop-shadow-[0_0_20px_rgba(251,191,36,0.5)] select-none">
+          {/* STOPWATCH MASTER NEON DISPLAY (COMPACT & ROCK-SOLID) */}
+          <div className="my-1.5 shrink-0">
+            <div className="bg-slate-950/90 border-2 border-slate-800 rounded-2xl py-2 sm:py-2.5 px-4 text-center shadow-inner relative overflow-hidden">
+              <div className="font-mono font-black text-4xl sm:text-5xl lg:text-6xl xl:text-7xl text-amber-300 tracking-wider tabular-nums leading-none select-none drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]">
                 {formatTime(elapsedMs)}
               </div>
             </div>
           </div>
 
-          {/* Urutan Waktu Finish Slots */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+          {/* Urutan Waktu Finish Slots (100% Fit Vertikal Mengisi Seluruh Ruang) */}
+          <div className="flex-1 min-h-0 flex flex-col gap-1 sm:gap-1.5 overflow-hidden">
             {Array.from({ length: participantCount }).map((_, idx) => {
               const position = idx + 1
               const splitRecord = currentTimer.splits[idx]
@@ -639,17 +609,17 @@ export default function PlasmaDisplayPage() {
               return (
                 <div
                   key={position}
-                  className={`flex items-center justify-between p-2.5 rounded-2xl border transition-all ${
+                  className={`flex-1 min-h-0 flex items-center justify-between px-3 sm:px-4 py-1 rounded-xl sm:rounded-2xl border transition-colors ${
                     isFilled
                       ? 'bg-slate-800/90 border-emerald-500/50 shadow-sm'
                       : isNextSlot
                       ? 'bg-slate-800/50 border-amber-400 ring-2 ring-amber-400/30 animate-pulse'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-500'
+                      : 'bg-slate-900/60 border-slate-800/80 text-slate-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <span
-                      className={`w-7 h-7 rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
+                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
                         position === 1 && isFilled
                           ? 'bg-yellow-400 text-slate-950 font-black'
                           : position === 2 && isFilled
@@ -663,14 +633,14 @@ export default function PlasmaDisplayPage() {
                     >
                       #{position}
                     </span>
-                    <div className="text-xs font-bold text-slate-300">
+                    <div className="text-xs sm:text-sm font-bold text-slate-300">
                       Posisi {position}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <div
-                      className={`font-mono font-black text-base sm:text-lg px-3 py-1 rounded-xl border ${
+                      className={`font-mono font-black text-sm sm:text-base md:text-lg px-2.5 sm:px-3 py-0.5 rounded-lg sm:rounded-xl border tabular-nums ${
                         isFilled
                           ? 'bg-slate-950 text-emerald-400 border-emerald-500/40 tracking-wider shadow-[0_0_10px_rgba(52,211,153,0.2)]'
                           : isNextSlot
@@ -684,14 +654,6 @@ export default function PlasmaDisplayPage() {
                 </div>
               )
             })}
-          </div>
-
-          {/* Footer Timer */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-bold shrink-0">
-            <span>{participantCount} Slot Waktu</span>
-            <span className="text-emerald-400 font-bold">
-              {currentTimer.splits.length} / {participantCount} Selesai
-            </span>
           </div>
         </section>
       </main>
