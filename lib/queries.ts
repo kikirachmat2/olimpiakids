@@ -95,11 +95,12 @@ export async function deleteParticipant(id: number): Promise<QueryResponse<boole
  */
 export async function getActiveRace(): Promise<QueryResponse<RaceEvent | null>> {
   try {
-    // 1. Cek yang sedang running terlebih dahulu
+    // 1. Cek yang sedang running terlebih dahulu (kecuali row session khusus >= 900)
     const { data: runningRace, error: runningErr } = await supabase
       .from('race_events')
       .select('*')
       .eq('status', 'running')
+      .lt('id', 900)
       .order('id', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -112,11 +113,12 @@ export async function getActiveRace(): Promise<QueryResponse<RaceEvent | null>> 
       return { data: runningRace as RaceEvent, error: null }
     }
 
-    // 2. Jika tidak ada yang running, cari yang 'idle' terbaru
+    // 2. Jika tidak ada yang running, cari yang 'idle' terbaru (kecuali row session khusus >= 900)
     const { data: idleRace, error: idleErr } = await supabase
       .from('race_events')
       .select('*')
       .eq('status', 'idle')
+      .lt('id', 900)
       .order('id', { ascending: false })
       .limit(1)
       .maybeSingle()

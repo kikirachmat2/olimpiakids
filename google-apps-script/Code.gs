@@ -448,55 +448,24 @@ function doPost(e) {
         }
       }
 
-      // 3. Update MASTER DATABASE (Kolom URUTAN, TIMER, REMARKS)
+      // Catatan: Kolom D (TIMER), E (URUTAN), dan F (REMARKS) di tab MASTER DATABASE
+      // kini memiliki rumus otomatis (=IF(WASIT!D3="","",WASIT!D3) dan VLOOKUP ke TIMER),
+      // sehingga cukup menulis ke tab WASIT & TIMER agar rumus MASTER DATABASE tetap terjaga!
+      // Hanya tulis manual ke MASTER DATABASE jika Wasit melakukan override waktu manual khusus:
       var masterDbSheet = ss.getSheetByName('MASTER DATABASE');
-      if (masterDbSheet) {
+      if (masterDbSheet && Object.keys(timerMap).length > 0) {
         var dbData = masterDbSheet.getDataRange().getValues();
         var colBib = 1;    // B: NOMOR DADA
         var colTimer = 3;  // D: TIMER
-        var colUrutan = 4; // E: URUTAN
-        var colRemarks = 5;// F: REMARKS
-
-        for (var r = 0; r < Math.min(dbData.length, 4); r++) {
-          for (var c = 0; c < dbData[r].length; c++) {
-            var h = String(dbData[r][c]).trim().toUpperCase();
-            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
-            if (h === 'TIMER' || h === 'WAKTU') colTimer = c;
-            if (h === 'URUTAN') colUrutan = c;
-            if (h === 'REMARKS' || h === 'STATUS') colRemarks = c;
-          }
-        }
 
         for (var i = 0; i < dbData.length; i++) {
           var bib = String(dbData[i][colBib]).trim().toUpperCase();
-          if (bib && Object.prototype.hasOwnProperty.call(resultMap, bib)) {
-            var pos = resultMap[bib];
-            var isDnf = (pos === 'DNF' || statusMap[bib] === 'dnf');
-
-            if (isDnf) {
-              masterDbSheet.getRange(i + 1, colUrutan + 1).setValue('DNF');
-              masterDbSheet.getRange(i + 1, colTimer + 1).setValue('DNF');
-              masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('DNF');
-            } else {
-              var numPos = parseInt(pos, 10);
-              masterDbSheet.getRange(i + 1, colUrutan + 1).setValue(numPos);
-
-              // Remarks: QUALIFIED jika ranking 1-5
-              if (!isNaN(numPos) && numPos <= 5) {
-                masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('QUALIFIED');
-              } else {
-                masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('NOT QUALIFIED');
-              }
-
-              // Pasangkan TIMER: dari manual edit jika ada, atau dari split posisi
-              var assignedTimer = timerMap[bib];
-              if (!assignedTimer && !isNaN(numPos) && splitMapByPosition[numPos]) {
-                assignedTimer = splitMapByPosition[numPos];
-              }
-
-              if (assignedTimer) {
-                masterDbSheet.getRange(i + 1, colTimer + 1).setValue(assignedTimer);
-              }
+          if (bib && timerMap[bib] && resultMap[bib] !== 'DNF') {
+            var posNum = parseInt(resultMap[bib], 10);
+            var defaultSplit = !isNaN(posNum) ? splitMapByPosition[posNum] : '';
+            // Hanya timpa sel jika waktu manual berbeda dari waktu split di tab TIMER
+            if (timerMap[bib] !== defaultSplit) {
+              masterDbSheet.getRange(i + 1, colTimer + 1).setValue(timerMap[bib]);
             }
           }
         }
@@ -728,31 +697,38 @@ function doPost(e) {
         }
       }
 
-      // 2. Kosongkan Kolom TIMER, URUTAN, REMARKS di MASTER DATABASE
+      // 2. Kosongkan Kolom VALID di tab WASIT dan pulihkan rumus MASTER DATABASE
+      var wasitSheet = ss.getSheetByName('WASIT') || ss.getSheetByName('MASTER WASIT');
+      if (wasitSheet) {
+        var wData = wasitSheet.getDataRange().getValues();
+        for (var r = 1; r < wData.length; r++) {
+          var bib = String(wData[r][1] || '').trim();
+          if (/^[0-9]{3}[A-Za-z]$/.test(bib)) {
+            wasitSheet.getRange(r + 1, 4).setValue('');
+          }
+        }
+      }
+
+      // 3. Pulihkan rumus otomatis di Kolom TIMER (D), URUTAN (E), REMARKS (F) pada MASTER DATABASE
       var masterDbSheet = ss.getSheetByName('MASTER DATABASE');
       if (masterDbSheet) {
         var dbData = masterDbSheet.getDataRange().getValues();
-        var colBib = 1;
-        var colTimer = 3;
-        var colUrutan = 4;
-        var colRemarks = 5;
-
-        for (var r = 0; r < Math.min(dbData.length, 4); r++) {
-          for (var c = 0; c < dbData[r].length; c++) {
-            var h = String(dbData[r][c]).trim().toUpperCase();
-            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
-            if (h === 'TIMER' || h === 'WAKTU') colTimer = c;
-            if (h === 'URUTAN') colUrutan = c;
-            if (h === 'REMARKS' || h === 'STATUS') colRemarks = c;
-          }
-        }
-
-        for (var i = 1; i < dbData.length; i++) {
-          var bib = String(dbData[i][colBib] || '').trim();
-          if (bib) {
-            masterDbSheet.getRange(i + 1, colTimer + 1).setValue('');
-            masterDbSheet.getRange(i + 1, colUrutan + 1).setValue('');
-            masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('');
+        var matchStartRow = 0;
+        var matchEndRow = 0;
+        for (var i = 0; i < dbData.length; i++) {
+          var cellA = String(dbData[i][0] || '').trim();
+          if (/^MATCH\s*\d+/i.test(cellA)) {
+            matchStartRow = i + 3; // 1-based first participant row
+            var j = i + 2;
+            while (j < dbData.length && dbData[j] && dbData[j][0] && !/^MATCH\s*\d+/i.test(String(dbData[j][0]))) {
+              j++;
+            }
+            matchEndRow = j;
+            for (var rowNum = matchStartRow; rowNum <= matchEndRow; rowNum++) {
+              masterDbSheet.getRange(rowNum, 4).setFormula('=IF(E' + rowNum + '="","",IF(UPPER(TRIM(E' + rowNum + '))="DNF","DNF",IFERROR(VLOOKUP(VALUE(E' + rowNum + '),TIMER!$A$' + matchStartRow + ':$B$' + matchEndRow + ',2,FALSE),"")))');
+              masterDbSheet.getRange(rowNum, 5).setFormula('=IF(WASIT!D' + rowNum + '="","",WASIT!D' + rowNum + ')');
+              masterDbSheet.getRange(rowNum, 6).setFormula('=IF(E' + rowNum + '="","",IF(UPPER(TRIM(E' + rowNum + '))="DNF","DNF",IF(IFERROR(VALUE(E' + rowNum + '),99)<=5,"QUALIFIED","NOT QUALIFIED")))');
+            }
           }
         }
       }

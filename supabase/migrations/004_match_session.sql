@@ -129,3 +129,4 @@ $$;
 REVOKE ALL ON FUNCTION public.sync_leaderboard_from_sheet(jsonb, bigint, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sync_leaderboard_from_sheet(jsonb, bigint, text) TO anon, authenticated, service_role;
 NOTIFY pgrst, 'reload schema';
+

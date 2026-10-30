@@ -445,11 +445,14 @@ export default function WasitPage() {
       broadcastSessionEvent({ action: 'SESSION_SYNC', session: resetSession })
       showToast('success', `Match ${currentMatch.id} berhasil direset bersih ke status LOCKED.`)
     } else if (emergencyModal === 'RESET_DB') {
-      // Panggil reset database Google Sheets
-      await fetch(process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL || '', {
+      // Panggil reset database Google Sheets & Supabase melalui API
+      await fetch('/api/wasit/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'RESET_DATABASE' }),
+        body: JSON.stringify({
+          action: 'RESET_DATABASE',
+          refereePin: '9999',
+        }),
       }).catch(() => {})
       showToast('success', 'Seluruh database berhasil direset bersih!')
     }
