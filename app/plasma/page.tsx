@@ -130,6 +130,12 @@ export default function PlasmaDisplayPage() {
       if (!s) return
 
       const targetId = s.matchId || 1
+      const statusUpper = (s.status || 'LOCKED').toUpperCase() as
+        | 'LOCKED'
+        | 'UNLOCKED'
+        | 'RUNNING'
+        | 'TIMER_COMPLETED'
+        | 'LOCKED_FINAL'
       const fallbackList =
         DEFAULT_MATCHES.find((m) => m.id === targetId)?.participants ||
         DEFAULT_MATCHES[0]?.participants ||
@@ -148,14 +154,14 @@ export default function PlasmaDisplayPage() {
           // Saat pertama kali buka: tampilkan match 1 (atau match aktif)
           setParticipants(resolvedParticipants)
           setSplits(s.splits || [])
-          setMatchStatus(s.status)
-          if (s.status === 'LOCKED_FINAL') {
+          setMatchStatus(statusUpper)
+          if (statusUpper === 'LOCKED_FINAL') {
             setIsLockedFinal(true)
             if (s.results) setFinalResults(s.results)
           } else {
             setIsLockedFinal(false)
           }
-          if (s.status === 'RUNNING' && s.startTime) {
+          if (statusUpper === 'RUNNING' && s.startTime) {
             startTimeRef.current = s.startTime
             setIsRunning(true)
           } else {
@@ -167,13 +173,13 @@ export default function PlasmaDisplayPage() {
 
         // Jika Wasit sedang memilih match baru di HP tapi statusnya MASIH 'LOCKED':
         // Plasma JANGAN ganti tampilan! Tetap stay di match sebelumnya.
-        if (isMatchSwitch && s.status === 'LOCKED') {
+        if (isMatchSwitch && statusUpper === 'LOCKED') {
           return currentDisplayedId
         }
 
         // Jika Wasit MEMBUKA GEMBOK match baru (status === 'UNLOCKED'):
         // Plasma BERUBAH dengan animasi pindah ke data match baru & timer 00:00.00!
-        if (isMatchSwitch && s.status === 'UNLOCKED') {
+        if (isMatchSwitch && statusUpper === 'UNLOCKED') {
           setParticipants(resolvedParticipants)
           setSplits([])
           setFinalResults([])
@@ -187,15 +193,15 @@ export default function PlasmaDisplayPage() {
         }
 
         // Jika masih di match yang sama (atau switch yang valid):
-        if (!isMatchSwitch || s.status !== 'LOCKED') {
-          setMatchStatus(s.status)
+        if (!isMatchSwitch || statusUpper !== 'LOCKED') {
+          setMatchStatus(statusUpper)
           setParticipants(resolvedParticipants)
 
           if (s.splits) {
             setSplits(s.splits)
           }
 
-          if (s.status === 'LOCKED_FINAL') {
+          if (statusUpper === 'LOCKED_FINAL') {
             setIsLockedFinal(true)
             setIsRunning(false)
             setIsPaused(false)
@@ -220,15 +226,15 @@ export default function PlasmaDisplayPage() {
             setIsLockedFinal(false)
           }
 
-          if (s.status === 'RUNNING') {
+          if (statusUpper === 'RUNNING') {
             if (s.startTime) startTimeRef.current = s.startTime
             setIsRunning(true)
             setIsPaused(false)
-          } else if (s.status === 'TIMER_COMPLETED') {
+          } else if (statusUpper === 'TIMER_COMPLETED') {
             setIsRunning(false)
             setIsPaused(false)
             if (s.elapsedMs) setElapsedMs(s.elapsedMs)
-          } else if (s.status === 'UNLOCKED') {
+          } else if (statusUpper === 'UNLOCKED') {
             setIsRunning(false)
             setIsPaused(false)
             setElapsedMs(0)

@@ -292,8 +292,9 @@ export default function TimerPage() {
   // =========================================================================
   // VIEW: TERKUNCI (KOSONG SELAMA WASIT BELUM BUKA GEMBOK)
   // =========================================================================
-  const isMatchLocked = session.status === 'LOCKED'
-  const isMatchFinal = session.status === 'LOCKED_FINAL'
+  const statusUpper = (session.status || 'LOCKED').toUpperCase()
+  const isMatchLocked = statusUpper === 'LOCKED'
+  const isMatchFinal = statusUpper === 'LOCKED_FINAL'
 
   if (isMatchLocked || isMatchFinal) {
     return (
@@ -362,8 +363,9 @@ export default function TimerPage() {
   // =========================================================================
   // VIEW: UNLOCKED & ACTIVE (STOPWATCH SIAP DIGUNAKAN)
   // =========================================================================
-  const isRunning = session.status === 'RUNNING'
-  const isCompleted = session.status === 'TIMER_COMPLETED'
+  const isRunning = statusUpper === 'RUNNING'
+  const isCompleted = statusUpper === 'TIMER_COMPLETED'
+  const isUnlocked = statusUpper === 'UNLOCKED'
   const participantsList = session.participants || []
   const dnfList = session.dnfList || []
   const activeFinishersTarget = participantsList.filter(
@@ -423,7 +425,7 @@ export default function TimerPage() {
 
         {/* PRIMARY ACTION BUTTONS */}
         <div className="space-y-2 shrink-0">
-          {session.status === 'UNLOCKED' && (
+          {isUnlocked && (
             <button
               onClick={handleStart}
               className="w-full py-5 bg-gradient-to-r from-emerald-500 to-green-400 hover:from-emerald-400 hover:to-green-300 active:scale-95 text-slate-950 font-display font-black text-xl rounded-2xl shadow-[0_6px_0_rgba(5,150,105,1)] flex items-center justify-center gap-2.5 transition-all"
@@ -433,17 +435,17 @@ export default function TimerPage() {
             </button>
           )}
 
-          {session.status === 'RUNNING' && (
+          {isRunning && (
             <button
               onClick={handleSplit}
               className="w-full py-6 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 hover:from-amber-300 hover:to-yellow-200 active:scale-95 text-slate-950 font-display font-black text-2xl rounded-2xl shadow-[0_6px_0_rgba(180,83,9,1)] flex items-center justify-center gap-3 transition-all"
             >
               <Zap className="w-7 h-7 fill-current text-slate-950 animate-bounce" />
-              <span>CATAT SPLIT #{session.splits.length + 1}</span>
+              <span>CATAT SPLIT #{(session.splits || []).length + 1}</span>
             </button>
           )}
 
-          {session.status === 'TIMER_COMPLETED' && (
+          {isCompleted && (
             <div className="p-4 bg-emerald-950/40 border-2 border-emerald-500/60 rounded-2xl text-center space-y-1">
               <div className="font-display font-black text-base text-emerald-400 uppercase flex items-center justify-center gap-1.5">
                 <CheckCircle2 className="w-5 h-5" />
