@@ -1,22 +1,19 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import {
   Lock,
   Unlock,
   ChevronLeft,
   ChevronRight,
-  ArrowUp,
-  ArrowDown,
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
   MoveRight,
   ShieldAlert,
-  Trophy,
-  UserX,
   Settings,
+  GripVertical,
 } from 'lucide-react'
 import { DEFAULT_MATCHES, WasitMatch, WasitParticipant } from '@/lib/wasitDefaults'
 
@@ -26,6 +23,159 @@ interface MatchState {
   status: MatchStatus
   participants: WasitParticipant[]
   lockedAt?: string
+}
+
+interface ParticipantCardProps {
+  participant: WasitParticipant
+  index: number
+  isMatchActive: boolean
+  onToggleDnf: (bib: string) => void
+  onOpenMoveModal: (p: WasitParticipant) => void
+}
+
+function ParticipantCard({
+  participant: p,
+  index,
+  isMatchActive,
+  onToggleDnf,
+  onOpenMoveModal,
+}: ParticipantCardProps) {
+  const dragControls = useDragControls()
+  const isDnf = p.status === 'dnf'
+  const isTop1 = index === 0 && !isDnf
+  const isTop2 = index === 1 && !isDnf
+  const isTop3 = index === 2 && !isDnf
+
+  // Clean, modern Rank Badge (NO MEDALS / EMOJIS)
+  let rankBadge = (
+    <div className="w-9 h-9 rounded-xl bg-slate-800 text-slate-300 font-display font-black text-sm flex items-center justify-center shrink-0 border border-slate-700">
+      {index + 1}
+    </div>
+  )
+
+  let cardBorder = 'border-slate-700/80'
+  let cardBg = 'bg-slate-800/90'
+
+  if (isTop1) {
+    cardBg = 'bg-slate-800/95'
+    cardBorder = 'border-amber-400'
+    rankBadge = (
+      <div className="w-9 h-9 rounded-xl bg-amber-400 text-amber-950 font-display font-black text-base flex items-center justify-center shrink-0 shadow-sm">
+        1
+      </div>
+    )
+  } else if (isTop2) {
+    cardBg = 'bg-slate-800/95'
+    cardBorder = 'border-slate-300/80'
+    rankBadge = (
+      <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-900 font-display font-black text-base flex items-center justify-center shrink-0 shadow-sm">
+        2
+      </div>
+    )
+  } else if (isTop3) {
+    cardBg = 'bg-slate-800/95'
+    cardBorder = 'border-amber-600/80'
+    rankBadge = (
+      <div className="w-9 h-9 rounded-xl bg-amber-600 text-white font-display font-black text-base flex items-center justify-center shrink-0 shadow-sm">
+        3
+      </div>
+    )
+  } else if (isDnf) {
+    cardBg = 'bg-red-950/20'
+    cardBorder = 'border-red-900/40 opacity-70'
+    rankBadge = (
+      <div className="w-9 h-9 rounded-xl bg-red-900/50 text-red-300 font-display font-black text-[11px] flex items-center justify-center shrink-0 border border-red-700/50">
+        DNF
+      </div>
+    )
+  }
+
+  return (
+    <Reorder.Item
+      value={p}
+      id={p.bib_number}
+      dragListener={false}
+      dragControls={dragControls}
+      className={`relative rounded-2xl border p-2.5 flex items-center justify-between gap-2.5 transition-colors select-none ${cardBg} ${cardBorder}`}
+      whileDrag={{
+        scale: 1.02,
+        boxShadow: '0 15px 30px -5px rgba(0, 0, 0, 0.7)',
+        borderColor: '#f59e0b',
+        zIndex: 50,
+      }}
+    >
+      {/* Rank Badge - also allows touch drag start */}
+      <div
+        onPointerDown={(e) => {
+          if (isMatchActive) dragControls.start(e)
+        }}
+        className={isMatchActive ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}
+      >
+        {rankBadge}
+      </div>
+
+      {/* Child Information (Full name visible, wrap gracefully) */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-mono font-black text-xs px-2 py-0.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-400/30">
+            {p.bib_number}
+          </span>
+          {isDnf && (
+            <span className="text-[10px] bg-red-500/20 text-red-400 font-black px-1.5 py-0.5 rounded border border-red-500/30 uppercase">
+              Mogok / DNF
+            </span>
+          )}
+        </div>
+        <div className="font-display font-bold text-sm text-white mt-1 leading-snug break-words">
+          {p.name}
+        </div>
+      </div>
+
+      {/* Right Actions */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {isMatchActive ? (
+          <>
+            {/* DNF Button */}
+            <button
+              onClick={() => onToggleDnf(p.bib_number)}
+              className={`px-2 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                isDnf
+                  ? 'bg-red-500 text-white border-red-400'
+                  : 'bg-slate-700/60 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-600'
+              }`}
+              title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
+            >
+              DNF
+            </button>
+
+            {/* Pindah Match Button */}
+            <button
+              onClick={() => onOpenMoveModal(p)}
+              className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 transition-all"
+              title="Pindahkan ke Match lain"
+            >
+              <MoveRight className="w-4 h-4" />
+            </button>
+
+            {/* Drag Handle */}
+            <div
+              onPointerDown={(e) => dragControls.start(e)}
+              className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 active:bg-yellow-400 active:text-amber-950 flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-300 transition-colors touch-none shadow-sm"
+              title="Tahan dan geser posisi anak"
+            >
+              <GripVertical className="w-5 h-5" />
+            </div>
+          </>
+        ) : (
+          <div className="text-right px-2">
+            <span className="text-[11px] font-bold text-slate-400">
+              {p.status === 'dnf' ? 'DNF' : `Peringkat ${index + 1}`}
+            </span>
+          </div>
+        )}
+      </div>
+    </Reorder.Item>
+  )
 }
 
 export default function WasitPage() {
@@ -199,20 +349,12 @@ export default function WasitPage() {
     }
   }
 
-  // 7. REORDER PESERTA (ATAS - BAWAH)
-  const moveParticipant = (fromIndex: number, toIndex: number) => {
-    if (currentMatchState.status !== 'active') {
-      showToast('Buka gembok match terlebih dahulu untuk mengurutkan.', 'error')
-      return
-    }
-    if (toIndex < 0 || toIndex >= currentMatchState.participants.length) return
+  // 7. REORDER PESERTA (DRAG & DROP)
+  const handleReorder = (newOrder: WasitParticipant[]) => {
+    if (currentMatchState.status !== 'active') return
 
     updateMatchState(currentMatch.id, (prev) => {
-      const items = [...prev.participants]
-      const [moved] = items.splice(fromIndex, 1)
-      items.splice(toIndex, 0, moved)
-      // Perbarui nomor posisi
-      const updatedItems = items.map((p, idx) => ({
+      const updatedItems = newOrder.map((p, idx) => ({
         ...p,
         position: idx + 1,
       }))
@@ -565,136 +707,32 @@ export default function WasitPage() {
         </div>
       </div>
 
-      {/* 4. LIST PESERTA (DRAG / UP-DOWN REORDER) */}
+      {/* 4. LIST PESERTA (DRAG & DROP REORDER) */}
       <main className="flex-1 w-full max-w-md mx-auto px-3 py-3 overflow-y-auto">
-        <div className="space-y-2">
-          {currentMatchState.participants.map((p, index) => {
-            const isTop1 = index === 0 && p.status !== 'dnf'
-            const isTop2 = index === 1 && p.status !== 'dnf'
-            const isTop3 = index === 2 && p.status !== 'dnf'
-            const isDnf = p.status === 'dnf'
+        {isMatchActive && (
+          <div className="text-[11px] text-slate-400 font-medium flex items-center justify-between px-1 mb-2.5">
+            <span>Tahan & geser ikon <b className="text-white font-bold">⠿</b> untuk atur urutan</span>
+            <span className="text-yellow-400 font-bold">Posisi 1 = Juara 1</span>
+          </div>
+        )}
 
-            // Style Card Peserta
-            let cardBg = 'bg-slate-800 border-slate-700 text-slate-100'
-            let rankBadge = (
-              <div className="w-8 h-8 rounded-xl bg-slate-700 text-slate-300 font-display font-black text-sm flex items-center justify-center shrink-0">
-                {index + 1}
-              </div>
-            )
-
-            if (isTop1) {
-              cardBg = 'bg-gradient-to-r from-amber-500/20 via-yellow-400/15 to-amber-500/20 border-yellow-400/60 text-white shadow-lg shadow-yellow-500/5'
-              rankBadge = (
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-yellow-300 to-amber-400 text-amber-950 font-display font-black text-sm flex items-center justify-center shrink-0 shadow-md">
-                  🥇 1
-                </div>
-              )
-            } else if (isTop2) {
-              cardBg = 'bg-gradient-to-r from-slate-400/20 via-slate-300/15 to-slate-400/20 border-slate-300/60 text-white'
-              rankBadge = (
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-slate-200 to-slate-300 text-slate-800 font-display font-black text-sm flex items-center justify-center shrink-0 shadow-md">
-                  🥈 2
-                </div>
-              )
-            } else if (isTop3) {
-              cardBg = 'bg-gradient-to-r from-amber-700/20 via-orange-600/15 to-amber-700/20 border-amber-600/60 text-white'
-              rankBadge = (
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-amber-600 to-amber-700 text-white font-display font-black text-sm flex items-center justify-center shrink-0 shadow-md">
-                  🥉 3
-                </div>
-              )
-            } else if (isDnf) {
-              cardBg = 'bg-red-950/30 border-red-900/50 text-red-300/70 opacity-60'
-              rankBadge = (
-                <div className="w-8 h-8 rounded-xl bg-red-900/50 text-red-300 font-bold text-[10px] flex items-center justify-center shrink-0">
-                  DNF
-                </div>
-              )
-            }
-
-            return (
-              <motion.div
-                key={p.bib_number}
-                layout
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                className={`relative rounded-2xl border p-2.5 flex items-center justify-between gap-2.5 transition-all select-none ${cardBg}`}
-              >
-                {/* Ranking & Info Anak */}
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  {rankBadge}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-display font-black text-xs px-2 py-0.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-400/30 tracking-wider">
-                        {p.bib_number}
-                      </span>
-                      {isDnf && (
-                        <span className="text-[9px] bg-red-500/20 text-red-400 font-black px-1.5 py-0.2 rounded border border-red-500/30 uppercase">
-                          Mogok / DNF
-                        </span>
-                      )}
-                    </div>
-                    <div className="font-display font-bold text-sm text-white truncate mt-0.5">
-                      {p.name}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tombol Kontrol Wasit (Up / Down / Opsi) */}
-                {isMatchActive ? (
-                  <div className="flex items-center gap-1 shrink-0">
-                    {/* Tombol Naik Urutan */}
-                    <button
-                      onClick={() => moveParticipant(index, index - 1)}
-                      disabled={index === 0}
-                      className="w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-20 active:scale-95 flex items-center justify-center text-white transition-all shadow-sm"
-                      title="Geser Naik"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </button>
-
-                    {/* Tombol Turun Urutan */}
-                    <button
-                      onClick={() => moveParticipant(index, index + 1)}
-                      disabled={index === currentMatchState.participants.length - 1}
-                      className="w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-20 active:scale-95 flex items-center justify-center text-white transition-all shadow-sm"
-                      title="Geser Turun"
-                    >
-                      <ArrowDown className="w-4 h-4" />
-                    </button>
-
-                    {/* Tombol DNF & Pindah */}
-                    <button
-                      onClick={() => toggleDnf(p.bib_number)}
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                        isDnf
-                          ? 'bg-red-500 text-white shadow-md'
-                          : 'bg-slate-700/60 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border border-slate-600'
-                      }`}
-                      title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
-                    >
-                      <UserX className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => setMoveModal({ participant: p, fromMatchId: currentMatch.id })}
-                      className="w-9 h-9 rounded-xl bg-slate-700/60 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 border border-slate-600 flex items-center justify-center transition-all"
-                      title="Pindahkan ke Match lain"
-                    >
-                      <MoveRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-slate-400">
-                      {isMatchLocked ? 'Terkunci' : 'Standby'}
-                    </span>
-                  </div>
-                )}
-              </motion.div>
-            )
-          })}
-        </div>
+        <Reorder.Group
+          axis="y"
+          values={currentMatchState.participants}
+          onReorder={handleReorder}
+          className="space-y-2"
+        >
+          {currentMatchState.participants.map((p, index) => (
+            <ParticipantCard
+              key={p.bib_number}
+              participant={p}
+              index={index}
+              isMatchActive={isMatchActive}
+              onToggleDnf={toggleDnf}
+              onOpenMoveModal={(participant) => setMoveModal({ participant, fromMatchId: currentMatch.id })}
+            />
+          ))}
+        </Reorder.Group>
       </main>
 
       {/* 5. STICKY BOTTOM ACTION BAR */}
@@ -788,7 +826,7 @@ export default function WasitPage() {
               ) : (
                 <>
                   <div className="w-12 h-12 bg-yellow-500/20 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <Trophy className="w-6 h-6" />
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <h3 className="font-display font-black text-lg text-white uppercase">
                     Kunci Hasil Final Match {confirmModal.matchId}?
@@ -797,22 +835,22 @@ export default function WasitPage() {
                     Pastikan urutan finish sudah benar:
                   </p>
 
-                  {/* Summary 3 Besar */}
-                  <div className="my-3 bg-slate-900/70 border border-slate-700/80 rounded-2xl p-2.5 text-left text-xs space-y-1">
-                    <div className="flex items-center gap-2 text-yellow-300 font-bold truncate">
-                      <span>🥇 1:</span>
+                  {/* Summary 3 Besar (NO MEDAL ICONS) */}
+                  <div className="my-3 bg-slate-900/80 border border-slate-700 rounded-2xl p-3 text-left text-xs space-y-1.5">
+                    <div className="flex items-center gap-2 text-white font-bold truncate">
+                      <span className="w-5 h-5 rounded-md bg-yellow-400 text-amber-950 font-black text-xs flex items-center justify-center shrink-0">1</span>
                       <span className="truncate">
                         [{currentMatchState.participants[0]?.bib_number}] {currentMatchState.participants[0]?.name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-300 font-bold truncate">
-                      <span>🥈 2:</span>
+                    <div className="flex items-center gap-2 text-slate-200 font-bold truncate">
+                      <span className="w-5 h-5 rounded-md bg-slate-200 text-slate-900 font-black text-xs flex items-center justify-center shrink-0">2</span>
                       <span className="truncate">
                         [{currentMatchState.participants[1]?.bib_number}] {currentMatchState.participants[1]?.name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-amber-500 font-bold truncate">
-                      <span>🥉 3:</span>
+                    <div className="flex items-center gap-2 text-slate-300 font-bold truncate">
+                      <span className="w-5 h-5 rounded-md bg-amber-600 text-white font-black text-xs flex items-center justify-center shrink-0">3</span>
                       <span className="truncate">
                         [{currentMatchState.participants[2]?.bib_number}] {currentMatchState.participants[2]?.name}
                       </span>
