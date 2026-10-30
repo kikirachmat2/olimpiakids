@@ -399,23 +399,23 @@ function doPost(e) {
 
       var totalUpdated = 0;
 
-      // 2. Update MASTER WASIT (Kolom WASIT 1, WASIT 2, WASIT 3, VALID)
-      var masterWasitSheet = ss.getSheetByName('MASTER WASIT');
+      // 2. Update WASIT / MASTER WASIT (Kolom VALID atau URUTAN)
+      var masterWasitSheet = ss.getSheetByName('WASIT') || ss.getSheetByName('MASTER WASIT');
       if (masterWasitSheet) {
         var mwData = masterWasitSheet.getDataRange().getValues();
         var mwColBib = 1; // Kolom B
-        var mwColsUpdate = []; // D, E, F, G
+        var mwColsUpdate = [];
 
         for (var r = 0; r < Math.min(mwData.length, 4); r++) {
           for (var c = 0; c < mwData[r].length; c++) {
             var h = String(mwData[r][c]).trim().toUpperCase();
             if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) mwColBib = c;
-            if (h === 'WASIT 1' || h === 'WASIT 2' || h === 'WASIT 3' || h === 'VALID') {
+            if (h === 'WASIT 1' || h === 'WASIT 2' || h === 'WASIT 3' || h === 'VALID' || h === 'URUTAN') {
               if (mwColsUpdate.indexOf(c) === -1) mwColsUpdate.push(c);
             }
           }
         }
-        if (mwColsUpdate.length === 0) mwColsUpdate = [3, 4, 5, 6];
+        if (mwColsUpdate.length === 0) mwColsUpdate = [3]; // Default Kolom D (VALID)
 
         for (var i = 0; i < mwData.length; i++) {
           var bib = String(mwData[i][mwColBib]).trim().toUpperCase();
