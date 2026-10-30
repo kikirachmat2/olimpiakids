@@ -63,7 +63,12 @@ export default function TimerPage() {
     try {
       const s = await getActiveSession()
       if (s) {
-        setSession(s)
+        setSession({
+          ...s,
+          participants: s.participants || [],
+          splits: s.splits || [],
+          dnfList: s.dnfList || [],
+        })
         if (s.status === 'RUNNING' && s.startTime) {
           startTimeRef.current = s.startTime
         } else if (s.elapsedMs) {
@@ -175,20 +180,23 @@ export default function TimerPage() {
     const currentElapsed = Math.max(0, now - startTimeRef.current)
     const formatted = formatTime(currentElapsed)
 
+    const currentSplits = session.splits || []
     const nextSplits = [
-      ...session.splits,
+      ...currentSplits,
       {
-        position: session.splits.length + 1,
+        position: currentSplits.length + 1,
         timer: formatted,
         elapsedMs: currentElapsed,
       },
     ]
 
     // Hitung sisa anak yang harus finish (Total Peserta dikurangi yang DNF)
-    const activeFinishersCount = session.participants.filter(
-      (p) => !session.dnfList.includes(p.bib_number) && p.status !== 'dnf'
+    const participantsList = session.participants || []
+    const dnfList = session.dnfList || []
+    const activeFinishersCount = participantsList.filter(
+      (p) => !dnfList.includes(p.bib_number) && p.status !== 'dnf'
     ).length
-    const targetCount = activeFinishersCount > 0 ? activeFinishersCount : session.participants.length
+    const targetCount = activeFinishersCount > 0 ? activeFinishersCount : Math.max(1, participantsList.length)
 
     // Cek apakah ini split terakhir!
     const isCompleted = nextSplits.length >= targetCount
@@ -356,10 +364,12 @@ export default function TimerPage() {
   // =========================================================================
   const isRunning = session.status === 'RUNNING'
   const isCompleted = session.status === 'TIMER_COMPLETED'
-  const activeFinishersTarget = session.participants.filter(
-    (p) => !session.dnfList.includes(p.bib_number) && p.status !== 'dnf'
+  const participantsList = session.participants || []
+  const dnfList = session.dnfList || []
+  const activeFinishersTarget = participantsList.filter(
+    (p) => !dnfList.includes(p.bib_number) && p.status !== 'dnf'
   ).length
-  const targetCount = activeFinishersTarget > 0 ? activeFinishersTarget : session.participants.length
+  const targetCount = activeFinishersTarget > 0 ? activeFinishersTarget : Math.max(1, participantsList.length)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans p-3 sm:p-4">
