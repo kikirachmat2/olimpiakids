@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence, Reorder } from 'framer-motion'
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import {
   Lock,
   Unlock,
@@ -35,6 +35,145 @@ import {
   getActiveSession,
   saveActiveSession,
 } from '@/lib/sessionStore'
+
+interface WasitReorderCardProps {
+  participant: WasitParticipant
+  index: number
+  isFinal: boolean
+  currentTimerVal: string
+  onToggleDnf: (bib: string) => void
+  onManualTimeChange: (bib: string, val: string) => void
+}
+
+function WasitReorderCard({
+  participant: p,
+  index: idx,
+  isFinal,
+  currentTimerVal,
+  onToggleDnf,
+  onManualTimeChange,
+}: WasitReorderCardProps) {
+  const dragControls = useDragControls()
+  const position = idx + 1
+  const isDnf = p.status === 'dnf'
+
+  return (
+    <Reorder.Item
+      value={p}
+      dragListener={false}
+      dragControls={dragControls}
+      whileDrag={{
+        scale: 1.03,
+        boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(251 191 36 / 0.35)',
+        zIndex: 50,
+      }}
+      className={`p-3 rounded-2xl border transition-colors flex flex-col gap-2 ${
+        isDnf
+          ? 'bg-red-950/30 border-red-500/50'
+          : position === 1
+          ? 'bg-slate-900 border-amber-400/60 shadow-sm'
+          : 'bg-slate-900/80 border-slate-800'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2.5">
+        {/* Grip Handle + Rank Badge + Info */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div
+            onPointerDown={(e) => {
+              if (!isFinal) {
+                e.preventDefault()
+                dragControls.start(e)
+              }
+            }}
+            style={{ touchAction: 'none' }}
+            className={`p-2 -ml-1.5 rounded-xl border transition-colors shrink-0 select-none ${
+              isFinal
+                ? 'text-slate-700 border-transparent cursor-not-allowed'
+                : 'text-amber-400 bg-slate-800/90 border-slate-700 hover:bg-slate-700 active:bg-amber-400 active:text-slate-950 cursor-grab active:cursor-grabbing'
+            }`}
+            title="Tahan & geser ikon grip ini untuk mengubah urutan"
+          >
+            <GripVertical className="w-5 h-5" />
+          </div>
+
+          <div
+            className={`w-8 h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
+              isDnf
+                ? 'bg-red-600 text-white'
+                : position === 1
+                ? 'bg-yellow-400 text-slate-950'
+                : position === 2
+                ? 'bg-slate-200 text-slate-950'
+                : position === 3
+                ? 'bg-amber-600 text-white'
+                : 'bg-slate-800 text-slate-300 border border-slate-700'
+            }`}
+          >
+            {isDnf ? 'DNF' : `#${position}`}
+          </div>
+
+          {/* Nomor Dada Raksasa + Nama */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`font-mono font-black text-2xl sm:text-3xl leading-none ${
+                  isDnf ? 'text-red-300' : 'text-amber-300'
+                }`}
+              >
+                {p.bib_number}
+              </span>
+              <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase">
+                {p.name}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Hanya tombol DNF */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => onToggleDnf(p.bib_number)}
+            disabled={isFinal}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+              isDnf
+                ? 'bg-red-600 text-white border-red-400'
+                : 'bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-700'
+            }`}
+            title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
+          >
+            DNF
+          </button>
+        </div>
+      </div>
+
+      {/* Manual Time Input Row (WASIT BISA EDIT & ISI WAKTU MANUAL) */}
+      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+        <span className="text-slate-400 font-bold flex items-center gap-1">
+          <Clock className="w-3.5 h-3.5 text-amber-400" />
+          <span>Catatan Waktu:</span>
+        </span>
+
+        {isDnf ? (
+          <span className="font-mono font-black text-red-400 text-xs px-2 py-0.5 rounded bg-red-950/40 border border-red-800/40">
+            DNF (Mogok - Tanpa Waktu)
+          </span>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={currentTimerVal}
+              onChange={(e) => onManualTimeChange(p.bib_number, e.target.value)}
+              disabled={isFinal}
+              placeholder="00:00.00"
+              className="w-28 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-center font-mono font-black text-sm text-amber-300 tracking-wider focus:outline-none"
+            />
+            <span className="text-[10px] text-slate-500">MM:SS.CC</span>
+          </div>
+        )}
+      </div>
+    </Reorder.Item>
+  )
+}
 
 export default function WasitPage() {
   // 1. AUTH STATE
@@ -1077,124 +1216,17 @@ export default function WasitPage() {
             className="space-y-2"
           >
             {participants.map((p, idx) => {
-              const position = idx + 1
-              const isDnf = p.status === 'dnf'
               const currentTimerVal = manualTimes[p.bib_number] || (session.splits?.[idx]?.timer || '')
-
               return (
-                <Reorder.Item
+                <WasitReorderCard
                   key={p.bib_number}
-                  value={p}
-                  dragListener={!isFinal}
-                  whileDrag={{
-                    scale: 1.03,
-                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(251 191 36 / 0.35)',
-                    zIndex: 50,
-                  }}
-                  className={`p-3 rounded-2xl border transition-colors flex flex-col gap-2 select-none ${
-                    !isFinal ? 'cursor-grab active:cursor-grabbing' : ''
-                  } ${
-                    isDnf
-                      ? 'bg-red-950/30 border-red-500/50'
-                      : position === 1
-                      ? 'bg-slate-900 border-amber-400/60 shadow-sm'
-                      : 'bg-slate-900/80 border-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2.5">
-                    {/* Grip Handle + Rank Badge + Info */}
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div
-                        className={`p-1 -ml-1 rounded-lg transition-colors shrink-0 ${
-                          isFinal ? 'text-slate-700' : 'text-slate-400 hover:text-amber-400 active:text-amber-300'
-                        }`}
-                        title="Tahan dan geser untuk mengubah urutan"
-                      >
-                        <GripVertical className="w-5 h-5" />
-                      </div>
-
-                      <div
-                        className={`w-8 h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
-                          isDnf
-                            ? 'bg-red-600 text-white'
-                            : position === 1
-                            ? 'bg-yellow-400 text-slate-950'
-                            : position === 2
-                            ? 'bg-slate-200 text-slate-950'
-                            : position === 3
-                            ? 'bg-amber-600 text-white'
-                            : 'bg-slate-800 text-slate-300 border border-slate-700'
-                        }`}
-                      >
-                        {isDnf ? 'DNF' : `#${position}`}
-                      </div>
-
-                      {/* Nomor Dada Raksasa + Nama */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2">
-                          <span
-                            className={`font-mono font-black text-2xl sm:text-3xl leading-none ${
-                              isDnf ? 'text-red-300' : 'text-amber-300'
-                            }`}
-                          >
-                            {p.bib_number}
-                          </span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase">
-                            {p.name}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Hanya tombol DNF (Tanpa tombol panah atas/bawah) */}
-                    <div
-                      className="flex items-center gap-1.5 shrink-0"
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() => handleToggleDnf(p.bib_number)}
-                        disabled={isFinal}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
-                          isDnf
-                            ? 'bg-red-600 text-white border-red-400'
-                            : 'bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-700'
-                        }`}
-                        title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
-                      >
-                        DNF
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Manual Time Input Row (WASIT BISA EDIT & ISI WAKTU MANUAL) */}
-                  <div
-                    className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs"
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <span className="text-slate-400 font-bold flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Catatan Waktu:</span>
-                    </span>
-
-                    {isDnf ? (
-                      <span className="font-mono font-black text-red-400 text-xs px-2 py-0.5 rounded bg-red-950/40 border border-red-800/40">
-                        DNF (Mogok - Tanpa Waktu)
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={currentTimerVal}
-                          onChange={(e) => handleManualTimeChange(p.bib_number, e.target.value)}
-                          disabled={isFinal}
-                          placeholder="00:00.00"
-                          className="w-28 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-center font-mono font-black text-sm text-amber-300 tracking-wider focus:outline-none"
-                        />
-                        <span className="text-[10px] text-slate-500">MM:SS.CC</span>
-                      </div>
-                    )}
-                  </div>
-                </Reorder.Item>
+                  participant={p}
+                  index={idx}
+                  isFinal={isFinal}
+                  currentTimerVal={currentTimerVal}
+                  onToggleDnf={handleToggleDnf}
+                  onManualTimeChange={handleManualTimeChange}
+                />
               )
             })}
           </Reorder.Group>
