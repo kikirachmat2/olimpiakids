@@ -116,7 +116,7 @@ async function syncResultsToSupabase(
             .from('race_results')
             .update({
               duration_ms: durationMs,
-              finish_time: isDnf ? 'DNF' : item.timer || nowIso,
+              finish_time: nowIso,
               status: isDnf ? 'disqualified' : 'finished',
             })
             .eq('id', existingRes.id)
@@ -125,7 +125,7 @@ async function syncResultsToSupabase(
             race_event_id: 2,
             participant_id: partRow.id,
             duration_ms: durationMs,
-            finish_time: isDnf ? 'DNF' : item.timer || nowIso,
+            finish_time: nowIso,
             status: isDnf ? 'disqualified' : 'finished',
           })
         }
