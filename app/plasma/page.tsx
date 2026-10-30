@@ -402,51 +402,51 @@ export default function PlasmaDisplayPage() {
       {/* =========================================================================
           TOP BROADCAST BAR (CLEAN, 100% BEBAS DARI DATA SAMPAH)
       ========================================================================= */}
-      <header className="bg-slate-900/95 border-b border-slate-800/80 px-5 py-2.5 flex items-center justify-between shrink-0 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black text-lg shadow-[0_0_15px_rgba(251,191,36,0.4)]">
+      <header className="bg-slate-900/95 border-b border-slate-800/80 px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 shadow-2xl">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black text-xl sm:text-2xl shadow-[0_0_20px_rgba(251,191,36,0.5)] shrink-0">
             🏆
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display font-black text-base sm:text-lg text-white tracking-wider uppercase">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="font-display font-black text-xl sm:text-2xl md:text-3xl lg:text-4xl text-white tracking-wider uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 {currentMatch?.title || `MATCH ${currentMatchIdx + 1}`}
               </span>
-              <span className="text-xs bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700">
+              <span className="text-xs sm:text-sm md:text-base bg-amber-400/20 text-amber-300 font-black px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border border-amber-400/40 shadow-inner">
                 Match {currentMatchIdx + 1} / {matches.length}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           {/* Status Badge Arena */}
           {isArenaActive && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-black uppercase tracking-wider animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+            <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs sm:text-sm font-black uppercase tracking-wider animate-pulse">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
               <span>ARENA BERJALAN</span>
             </div>
           )}
           {isArenaFinal && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-black uppercase tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-black uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
               <span>FINAL & SELESAI</span>
             </div>
           )}
           {!isArenaActive && !isArenaFinal && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-xs font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider">
               <span>STANDBY</span>
             </div>
           )}
 
-          {/* Fullscreen Button */}
+          {/* Fullscreen Button [F] */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white rounded-xl border border-slate-700 text-xs flex items-center gap-1.5 transition-all shadow-sm"
+            className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all shadow-md group"
             title="Toggle Fullscreen (Hotkey: F)"
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            <span className="hidden sm:inline font-bold">Fullscreen</span>
+            {isFullscreen ? <Minimize2 className="w-4 h-4 text-amber-300" /> : <Maximize2 className="w-4 h-4 text-amber-300" />}
+            <span className="font-mono font-black text-xs sm:text-sm px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-400 group-hover:border-amber-400/50">F</span>
           </button>
         </div>
       </header>
