@@ -11,6 +11,8 @@ interface RankRowProps {
   bib_number: string
   participant_name: string
   duration_ms: number | null
+  status?: string
+  finish_time?: string | null
   index?: number
   movement?: RowMovement
   celebration?: RowCelebration
@@ -32,11 +34,18 @@ export default function RankRow({
   bib_number,
   participant_name,
   duration_ms,
+  status,
+  finish_time,
   celebration = 'none',
 }: RankRowProps) {
-  const isFirst = rank === 1
-  const isSecond = rank === 2
-  const isThird = rank === 3
+  const isDnf =
+    status === 'disqualified' ||
+    status === 'dnf' ||
+    finish_time === 'DNF' ||
+    finish_time === 'dnf'
+  const isFirst = rank === 1 && !isDnf
+  const isSecond = rank === 2 && !isDnf
+  const isThird = rank === 3 && !isDnf
 
   // Base style & bevel shadow: shadow-[0_3px_0_rgba(...)]
   let rowStyle =
@@ -44,7 +53,12 @@ export default function RankRow({
   let timerStyle = 'bg-gradient-to-b from-blue-500 to-blue-600 text-white shadow-sm'
   let badgeIcon: React.ReactNode = null
 
-  if (isFirst) {
+  if (isDnf) {
+    // 🚨 DNF / Mogok: Bar merah mencolok tegas
+    rowStyle =
+      'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-2 border-red-400 text-white shadow-[0_3px_0_rgba(153,27,27,1)] sm:shadow-[0_4px_0_rgba(153,27,27,1)]'
+    timerStyle = 'bg-red-950 text-red-100 font-black border border-red-400/60 shadow-inner'
+  } else if (isFirst) {
     // 🥇 Juara 1: Special Gold berkilau dengan efek bevel emas tebal
     rowStyle =
       'bg-gradient-to-b from-amber-200 via-yellow-300 to-amber-300 border-2 border-amber-400 text-amber-950 shadow-[0_3px_0_rgba(217,119,6,1)] sm:shadow-[0_4px_0_rgba(217,119,6,1)] ring-1 sm:ring-2 ring-yellow-400/40'
@@ -101,15 +115,17 @@ export default function RankRow({
     : 20
 
   let celebrationClasses = ''
-  if (isChampionCelebration) {
-    celebrationClasses =
-      'ring-4 sm:ring-[5px] ring-yellow-300 shadow-[0_8px_30px_rgba(234,179,8,0.7)]'
-  } else if (isTop3Celebration) {
-    celebrationClasses =
-      'ring-4 ring-amber-400 shadow-[0_6px_24px_rgba(245,158,11,0.55)]'
-  } else if (isRevealCelebration) {
-    celebrationClasses =
-      'ring-4 ring-sky-400 shadow-[0_6px_25px_rgba(56,189,248,0.75)] animate-pulse'
+  if (!isDnf) {
+    if (isChampionCelebration) {
+      celebrationClasses =
+        'ring-4 sm:ring-[5px] ring-yellow-300 shadow-[0_8px_30px_rgba(234,179,8,0.7)]'
+    } else if (isTop3Celebration) {
+      celebrationClasses =
+        'ring-4 ring-amber-400 shadow-[0_6px_24px_rgba(245,158,11,0.55)]'
+    } else if (isRevealCelebration) {
+      celebrationClasses =
+        'ring-4 ring-sky-400 shadow-[0_6px_25px_rgba(56,189,248,0.75)] animate-pulse'
+    }
   }
 
   return (
@@ -134,20 +150,28 @@ export default function RankRow({
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
     >
-      {/* Kolom 1 (10%): NO DENGAN MEDALI SPESIAL */}
+      {/* Kolom 1 (10%): NO DENGAN MEDALI SPESIAL ATAU BADGE DNF */}
       <div className="text-center font-display font-black text-sm sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl flex items-center justify-center">
-        {badgeIcon}
-        <motion.span
-          key={rank}
-          initial={{
-            scale: 1.3,
-            opacity: 0.3,
-          }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.35, ease: 'easeOut' }}
-        >
-          {rank}
-        </motion.span>
+        {isDnf ? (
+          <span className="text-[11px] sm:text-xs font-black px-1.5 py-0.5 rounded bg-red-950 text-red-200 border border-red-400/50">
+            DNF
+          </span>
+        ) : (
+          <>
+            {badgeIcon}
+            <motion.span
+              key={rank}
+              initial={{
+                scale: 1.3,
+                opacity: 0.3,
+              }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.35, ease: 'easeOut' }}
+            >
+              {rank}
+            </motion.span>
+          </>
+        )}
       </div>
 
       {/* Kolom 2 (20%): NOMOR DADA */}
@@ -158,15 +182,20 @@ export default function RankRow({
       {/* Kolom 3 (48%): NAMA ANAK */}
       <div className="font-sans font-extrabold text-xs sm:text-base md:text-lg lg:text-xl xl:text-2xl truncate pl-2 sm:pl-3 pr-1 flex items-center gap-1.5">
         <span className="truncate">{participant_name}</span>
-        {isFirst && <span className="text-xs sm:text-base shrink-0">👑</span>}
+        {isFirst && !isDnf && <span className="text-xs sm:text-base shrink-0">👑</span>}
+        {isDnf && (
+          <span className="text-[10px] sm:text-xs bg-red-950 text-red-200 px-2 py-0.5 rounded-md border border-red-400/50 font-black uppercase tracking-wider shrink-0">
+            DNF
+          </span>
+        )}
       </div>
 
-      {/* Kolom 4 (22%): TIMER DENGAN WARNA SPESIAL */}
+      {/* Kolom 4 (22%): TIMER DENGAN WARNA SPESIAL (JIKA DNF, MUNCULKAN DNF) */}
       <div className="flex justify-center items-center">
         <div
           className={`w-[95%] sm:w-[88%] max-w-[130px] md:max-w-[150px] xl:max-w-[165px] py-1 sm:py-1.5 lg:py-2 rounded-full text-center font-mono font-black text-[11px] sm:text-sm md:text-base lg:text-lg xl:text-xl tracking-tight ${timerStyle}`}
         >
-          {formatTimerMMSSCC(duration_ms)}
+          {isDnf ? 'DNF' : formatTimerMMSSCC(duration_ms)}
         </div>
       </div>
     </motion.div>

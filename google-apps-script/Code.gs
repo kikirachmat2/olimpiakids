@@ -133,10 +133,13 @@ function extractRows_(values) {
     var bib = String(line[layout.colBib] == null ? '' : line[layout.colBib]).trim();
     var name = String(line[layout.colName] == null ? '' : line[layout.colName]).replace(/\s+/g, ' ').trim();
     if (!bib || !name) continue;
+    var rawTimer = String(line[layout.colTimer] == null ? '' : line[layout.colTimer]).trim().toUpperCase();
+    var isDnf = rawTimer === 'DNF';
     rows.push({
       bib: bib.toUpperCase(),
       name: name,
-      duration_ms: parseTimerToMs(line[layout.colTimer]),
+      duration_ms: isDnf ? null : parseTimerToMs(line[layout.colTimer]),
+      status: isDnf ? 'disqualified' : 'finished',
     });
   }
   return rows;
@@ -470,19 +473,27 @@ function doPost(e) {
           var bib = String(dbData[i][colBib]).trim().toUpperCase();
           if (bib && Object.prototype.hasOwnProperty.call(resultMap, bib)) {
             var pos = resultMap[bib];
-            masterDbSheet.getRange(i + 1, colUrutan + 1).setValue(pos);
+            var isDnf = (pos === 'DNF' || statusMap[bib] === 'dnf');
 
-            // Remarks: QUALIFIED jika ranking 1-5
-            var numPos = parseInt(pos, 10);
-            if (!isNaN(numPos) && numPos <= 5) {
-              masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('QUALIFIED');
+            if (isDnf) {
+              masterDbSheet.getRange(i + 1, colUrutan + 1).setValue('DNF');
+              masterDbSheet.getRange(i + 1, colTimer + 1).setValue('DNF');
+              masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('DNF');
             } else {
-              masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('NOT QUALIFIED');
-            }
+              var numPos = parseInt(pos, 10);
+              masterDbSheet.getRange(i + 1, colUrutan + 1).setValue(numPos);
 
-            // Pasangkan TIMER dari tab TIMER jika tersedia
-            if (!isNaN(numPos) && splitMapByPosition[numPos]) {
-              masterDbSheet.getRange(i + 1, colTimer + 1).setValue(splitMapByPosition[numPos]);
+              // Remarks: QUALIFIED jika ranking 1-5
+              if (!isNaN(numPos) && numPos <= 5) {
+                masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('QUALIFIED');
+              } else {
+                masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('NOT QUALIFIED');
+              }
+
+              // Pasangkan TIMER dari tab TIMER jika tersedia
+              if (!isNaN(numPos) && splitMapByPosition[numPos]) {
+                masterDbSheet.getRange(i + 1, colTimer + 1).setValue(splitMapByPosition[numPos]);
+              }
             }
           }
         }
@@ -588,7 +599,14 @@ function doPost(e) {
             var bib = String(dbData[r][colBib] || '').trim().toUpperCase();
             if (!bib) continue;
 
-            var urutanVal = parseInt(dbData[r][colUrutan], 10);
+            var urutanCell = String(dbData[r][colUrutan] || '').trim().toUpperCase();
+            // JANGAN tulis timer jika anak tersebut DNF!
+            if (urutanCell === 'DNF') {
+              masterDbSheet.getRange(r + 1, colTimer + 1).setValue('DNF');
+              continue;
+            }
+
+            var urutanVal = parseInt(urutanCell, 10);
             if (!isNaN(urutanVal) && splitMapByPosition[urutanVal]) {
               masterDbSheet.getRange(r + 1, colTimer + 1).setValue(splitMapByPosition[urutanVal]);
               updatedTimersCount++;

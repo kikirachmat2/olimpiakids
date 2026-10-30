@@ -390,19 +390,25 @@ export default function PlasmaDisplayPage() {
                   </div>
                 )
 
-                if (position === 1 && !isDnf) {
+                if (isDnf) {
+                  rankBadge = (
+                    <div className="w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center bg-red-950 text-red-300 border border-red-500/60 shrink-0">
+                      DNF
+                    </div>
+                  )
+                } else if (position === 1) {
                   rankBadge = (
                     <div className="w-8 h-8 rounded-xl font-black text-sm flex items-center justify-center bg-gradient-to-tr from-yellow-500 to-amber-300 text-amber-950 shadow-md shrink-0 ring-2 ring-yellow-400/50">
                       1
                     </div>
                   )
-                } else if (position === 2 && !isDnf) {
+                } else if (position === 2) {
                   rankBadge = (
                     <div className="w-8 h-8 rounded-xl font-black text-sm flex items-center justify-center bg-gradient-to-tr from-slate-200 to-white text-slate-900 shadow-md shrink-0">
                       2
                     </div>
                   )
-                } else if (position === 3 && !isDnf) {
+                } else if (position === 3) {
                   rankBadge = (
                     <div className="w-8 h-8 rounded-xl font-black text-sm flex items-center justify-center bg-gradient-to-tr from-amber-600 to-amber-500 text-white shadow-md shrink-0">
                       3
@@ -422,7 +428,7 @@ export default function PlasmaDisplayPage() {
                       position === 1 && !isDnf
                         ? 'bg-yellow-500/10 border-yellow-500/40 shadow-sm'
                         : isDnf
-                        ? 'bg-red-950/20 border-red-500/30 opacity-70'
+                        ? 'bg-red-950/30 border-red-500/50 shadow-sm'
                         : 'bg-slate-800/70 border-slate-700/70'
                     }`}
                   >
@@ -448,9 +454,15 @@ export default function PlasmaDisplayPage() {
                     </div>
 
                     <div className="text-right shrink-0">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase">
-                        Posisi #{position}
-                      </span>
+                      {isDnf ? (
+                        <span className="text-[11px] font-black text-red-300 uppercase bg-red-950/70 px-2 py-0.5 rounded border border-red-500/50">
+                          DNF
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">
+                          Posisi #{position}
+                        </span>
+                      )}
                     </div>
                   </motion.div>
                 )
@@ -610,3 +622,4 @@ export default function PlasmaDisplayPage() {
     </div>
   )
 }
+

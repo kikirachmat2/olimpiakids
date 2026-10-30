@@ -363,15 +363,39 @@ export async function getLeaderboard(eventId: number): Promise<QueryResponse<Lea
     }
 
     // Format data menjadi struktur LeaderboardItem yang rapi
-    const leaderboard: LeaderboardItem[] = ((data as unknown as LeaderboardRowQuery[]) || []).map((row, index: number) => ({
-      rank: index + 1,
-      participant_id: row.participant_id,
-      participant_name: row.participants?.name || 'Anonim',
-      bib_number: row.participants?.bib_number || '-',
-      duration_ms: row.duration_ms,
-      finish_time: row.finish_time,
-      status: row.status,
-    }))
+    const rawList = ((data as unknown as LeaderboardRowQuery[]) || [])
+
+    // Urutkan:
+    // 1. Yang sudah finish dengan catatan waktu tercepat di atas
+    // 2. Yang belum bertanding (null)
+    // 3. Yang DNF / Mogok / Disqualified SELALU DI PALING BAWAH
+    rawList.sort((a, b) => {
+      const isDnfA = a.status === 'disqualified' || a.finish_time === 'DNF' || (a.status as string) === 'dnf'
+      const isDnfB = b.status === 'disqualified' || b.finish_time === 'DNF' || (b.status as string) === 'dnf'
+      if (isDnfA && !isDnfB) return 1
+      if (!isDnfA && isDnfB) return -1
+      if (isDnfA && isDnfB) return 0
+
+      const hasA = a.duration_ms !== null && a.duration_ms !== undefined
+      const hasB = b.duration_ms !== null && b.duration_ms !== undefined
+      if (hasA && hasB) return a.duration_ms! - b.duration_ms!
+      if (hasA && !hasB) return -1
+      if (!hasA && hasB) return 1
+      return 0
+    })
+
+    const leaderboard: LeaderboardItem[] = rawList.map((row, index: number) => {
+      const isDnf = row.status === 'disqualified' || row.finish_time === 'DNF' || (row.status as string) === 'dnf'
+      return {
+        rank: index + 1,
+        participant_id: row.participant_id,
+        participant_name: row.participants?.name || 'Anonim',
+        bib_number: row.participants?.bib_number || '-',
+        duration_ms: isDnf ? null : row.duration_ms, // DNF TIDAK BOLEH menampilkan waktu
+        finish_time: isDnf ? 'DNF' : row.finish_time,
+        status: isDnf ? 'disqualified' : row.status,
+      }
+    })
 
     return { data: leaderboard, error: null }
   } catch (err: unknown) {

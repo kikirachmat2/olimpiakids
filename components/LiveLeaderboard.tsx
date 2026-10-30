@@ -255,8 +255,14 @@ export default function LiveLeaderboard() {
         nextBoard.push({ ...item })
       }
 
-      // Sortir urutan: yang sudah ada catatan waktu di atas, yang belum tetap di bawah
+      // Sortir urutan: yang sudah ada catatan waktu di atas, yang belum tetap di bawah, DNF selalu di paling bawah
       nextBoard.sort((a, b) => {
+        const isDnfA = a.status === 'disqualified' || (a.status as string) === 'dnf' || a.finish_time === 'DNF' || a.finish_time === 'dnf'
+        const isDnfB = b.status === 'disqualified' || (b.status as string) === 'dnf' || b.finish_time === 'DNF' || b.finish_time === 'dnf'
+        if (isDnfA && !isDnfB) return 1
+        if (!isDnfA && isDnfB) return -1
+        if (isDnfA && isDnfB) return 0
+
         const hasA = a.duration_ms !== null && a.duration_ms !== undefined
         const hasB = b.duration_ms !== null && b.duration_ms !== undefined
         if (hasA && hasB) return (a.duration_ms || 0) - (b.duration_ms || 0)
@@ -272,37 +278,41 @@ export default function LiveLeaderboard() {
       setLeaderboard(nextBoard)
       leaderboardRef.current = nextBoard
 
-      // Selebrasi & efek audio per nama yang muncul
-      const currentRank = item.rank || 1
-      const isChamp = currentRank === 1
-      const isTop3 = currentRank <= 3
+      const isDnf = item.status === 'disqualified' || (item.status as string) === 'dnf' || item.finish_time === 'DNF' || item.finish_time === 'dnf'
 
-      if (isChamp) {
-        setCelebrations({ [item.bib_number]: 'champion' })
-        fireChampionConfetti()
-        playCelebrationSound('champion', isMutedRef.current)
-        setActiveToast({
-          type: 'champion',
-          title: '👑 JUARA 1 BARU!',
-          subtitle: `${item.participant_name} merebut posisi 1 (${formatTimerMMSSCC(item.duration_ms)})`,
-        })
-      } else if (isTop3) {
-        setCelebrations({ [item.bib_number]: 'top3' })
-        fireTop3Confetti()
-        playCelebrationSound('top3', isMutedRef.current)
-        setActiveToast({
-          type: 'top3',
-          title: `🎉 MASUK PERINGKAT ${currentRank}!`,
-          subtitle: `${item.participant_name} menembus 3 besar (${formatTimerMMSSCC(item.duration_ms)})`,
-        })
-      } else {
-        setCelebrations({ [item.bib_number]: 'reveal' })
-        playRevealSound(isMutedRef.current)
-        setActiveToast({
-          type: 'top3',
-          title: `🍼 HASIL FINISH PERINGKAT ${currentRank}`,
-          subtitle: `${item.participant_name} (${formatTimerMMSSCC(item.duration_ms)})`,
-        })
+      // Selebrasi & efek audio HANYA jika bukan DNF
+      if (!isDnf) {
+        const currentRank = item.rank || 1
+        const isChamp = currentRank === 1
+        const isTop3 = currentRank <= 3
+
+        if (isChamp) {
+          setCelebrations({ [item.bib_number]: 'champion' })
+          fireChampionConfetti()
+          playCelebrationSound('champion', isMutedRef.current)
+          setActiveToast({
+            type: 'champion',
+            title: '👑 JUARA 1 BARU!',
+            subtitle: `${item.participant_name} merebut posisi 1 (${formatTimerMMSSCC(item.duration_ms)})`,
+          })
+        } else if (isTop3) {
+          setCelebrations({ [item.bib_number]: 'top3' })
+          fireTop3Confetti()
+          playCelebrationSound('top3', isMutedRef.current)
+          setActiveToast({
+            type: 'top3',
+            title: `🎉 MASUK PERINGKAT ${currentRank}!`,
+            subtitle: `${item.participant_name} menembus 3 besar (${formatTimerMMSSCC(item.duration_ms)})`,
+          })
+        } else {
+          setCelebrations({ [item.bib_number]: 'reveal' })
+          playRevealSound(isMutedRef.current)
+          setActiveToast({
+            type: 'top3',
+            title: `🍼 HASIL FINISH PERINGKAT ${currentRank}`,
+            subtitle: `${item.participant_name} (${formatTimerMMSSCC(item.duration_ms)})`,
+          })
+        }
       }
 
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -354,6 +364,8 @@ export default function LiveLeaderboard() {
     const newlyFinished: LeaderboardItem[] = []
 
     nextData.forEach((newItem) => {
+      const isDnf = newItem.status === 'disqualified' || (newItem.status as string) === 'dnf' || newItem.finish_time === 'DNF' || newItem.finish_time === 'dnf'
+      if (isDnf) return // DNF tidak dimasukkan ke antrean selebrasi juara
       const cur = currentBoard.find((c) => c.bib_number === newItem.bib_number)
       const hadNoTime = !cur || cur.duration_ms === null || cur.duration_ms === undefined
       const nowHasTime = newItem.duration_ms !== null && newItem.duration_ms !== undefined
@@ -673,6 +685,8 @@ export default function LiveLeaderboard() {
                   bib_number={item.bib_number}
                   participant_name={item.participant_name}
                   duration_ms={item.duration_ms}
+                  status={item.status}
+                  finish_time={item.finish_time}
                   celebration={celebrations[item.bib_number] || 'none'}
                 />
               ))
