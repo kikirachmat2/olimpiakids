@@ -241,12 +241,19 @@ export default function LiveLeaderboard() {
       // Update tampilan papan skor bertahap:
       // Bayi ini mendapatkan nilai durasinya, sedangkan bayi di antrean berikutnya masih menunggu
       const currentBoard = [...leaderboardRef.current]
+      let existsInBoard = false
       const nextBoard = currentBoard.map((c) => {
         if (c.bib_number === item.bib_number) {
+          existsInBoard = true
           return { ...c, duration_ms: item.duration_ms, rank: item.rank }
         }
         return c
       })
+
+      // JIKA BAYI INI BARU MASUK (BELUM ADA DI PAPAN SKOR), TAMBAHKAN SATU PERSATU SECARA BERTAHAP!
+      if (!existsInBoard) {
+        nextBoard.push({ ...item })
+      }
 
       // Sortir urutan: yang sudah ada catatan waktu di atas, yang belum tetap di bawah
       nextBoard.sort((a, b) => {

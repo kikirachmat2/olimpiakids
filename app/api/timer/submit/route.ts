@@ -5,7 +5,7 @@ const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzW7iHQryhH
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { matchId, matchTitle, splits, pin, webhookUrl } = body
+    const { matchId, matchTitle, splits, participants, pin, webhookUrl } = body
 
     if (!matchId || !splits || !Array.isArray(splits) || splits.length === 0) {
       return NextResponse.json(
@@ -41,6 +41,7 @@ export async function POST(request: Request) {
               matchId,
               matchTitle,
               splits,
+              participants: participants || [],
               submittedAt: new Date().toISOString(),
             }),
             redirect: 'follow',
@@ -84,3 +85,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }
 }
+

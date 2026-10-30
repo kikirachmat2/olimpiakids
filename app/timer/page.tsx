@@ -40,6 +40,10 @@ interface PendingTimerSubmission {
     timer: string
     elapsedMs: number
   }>
+  participants?: Array<{
+    bib_number: string
+    name: string
+  }>
   pin: string
   webhookUrl?: string
   timestamp: string
@@ -399,6 +403,7 @@ export default function TimerPage() {
               matchId: item.matchId,
               matchTitle: item.matchTitle,
               splits: item.splits,
+              participants: item.participants || [],
               pin: item.pin,
               webhookUrl: item.webhookUrl || customWebhookUrl,
             }),
@@ -438,6 +443,10 @@ export default function TimerPage() {
       matchId: currentMatch.id,
       matchTitle: currentMatch.title,
       splits: currentMatchState.splits,
+      participants: currentMatch.participants?.map((p) => ({
+        bib_number: p.bib_number,
+        name: p.name,
+      })) || [],
       pin,
       webhookUrl: customWebhookUrl || undefined,
       timestamp: new Date().toISOString(),
@@ -460,6 +469,7 @@ export default function TimerPage() {
             matchId: submissionData.matchId,
             matchTitle: submissionData.matchTitle,
             splits: submissionData.splits,
+            participants: submissionData.participants,
             pin,
             webhookUrl: customWebhookUrl || undefined,
           }),

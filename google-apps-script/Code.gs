@@ -344,146 +344,206 @@ function doPost(e) {
     }
 
     var payload = JSON.parse(contents);
+
+    // =========================================================================
+    // AKSI 1: SUBMIT URUTAN DARI WASIT LAPANGAN (/wasit)
+    // =========================================================================
     if (payload.action === 'SUBMIT_URUTAN') {
       var results = payload.results || [];
+      var matchId = payload.matchId;
       var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-      // Target penulisan urutan: tab WASIT 1, MASTER DATABASE, dan MASTER WASIT
-      var targetSheets = [
-        ss.getSheetByName('WASIT 1'),
-        ss.getSheetByName('MASTER DATABASE'),
-        ss.getSheetByName('MASTER WASIT'),
-        ss.getSheetByName('WASIT 2'),
-        ss.getSheetByName('WASIT 3')
-      ].filter(Boolean);
-
-      if (targetSheets.length === 0) {
-        targetSheets = [ss.getSheets()[0]];
-      }
-
       var resultMap = {};
-      var timerMap = {};
+      var statusMap = {};
       results.forEach(function(item) {
         if (item.bib_number) {
+          var cleanBib = item.bib_number.trim().toUpperCase();
           var val = item.position;
           if (item.status === 'dnf') val = 'DNF';
           if (item.status === 'dns') val = 'DNS';
-          var cleanBib = item.bib_number.trim().toUpperCase();
           resultMap[cleanBib] = val;
-          if (item.timer) {
-            timerMap[cleanBib] = item.timer;
-          }
+          statusMap[cleanBib] = item.status || 'finished';
         }
       });
 
-      var totalUpdated = 0;
-      targetSheets.forEach(function(sh) {
-        var sheetName = sh.getName();
-        var data = sh.getDataRange().getValues();
-        var colBib = 1; // Default kolom B (NOMOR DADA)
-        var colsToUpdate = []; // Kolom-kolom yang akan diisi nilai urutan
-
-        // Scan baris 1-4 untuk menemukan header
-        var colTimer = -1;
-        for (var r = 0; r < Math.min(data.length, 4); r++) {
-          for (var c = 0; c < data[r].length; c++) {
-            var header = String(data[r][c]).trim().toUpperCase();
-            if (header.indexOf('NOMOR') !== -1 || header.indexOf('BIB') !== -1) colBib = c;
-            if (header === 'URUTAN') {
-              if (colsToUpdate.indexOf(c) === -1) colsToUpdate.push(c);
-            }
-            if (header === 'TIMER' || header === 'WAKTU') {
-              colTimer = c;
-            }
-            if (sheetName === 'MASTER WASIT') {
-              if (header === 'WASIT 1' || header === 'WASIT 2' || header === 'WASIT 3' || header === 'VALID') {
-                if (colsToUpdate.indexOf(c) === -1) colsToUpdate.push(c);
+      // 1. Baca split timer dari tab TIMER untuk match ini (jika sudah ada)
+      var timerSheet = ss.getSheetByName('TIMER');
+      var splitMapByPosition = {};
+      if (timerSheet) {
+        var timerVals = timerSheet.getDataRange().getValues();
+        var matchRowIdx = -1;
+        var matchRegex = new RegExp('MATCH\\s*' + matchId + '\\b', 'i');
+        for (var r = 0; r < timerVals.length; r++) {
+          if (matchRegex.test(String(timerVals[r][0] || ''))) {
+            matchRowIdx = r;
+            break;
+          }
+        }
+        if (matchRowIdx !== -1) {
+          var headerR = matchRowIdx + 1;
+          for (var s = 0; s < results.length; s++) {
+            var dataR = headerR + 1 + s;
+            if (dataR < timerVals.length) {
+              // Kolom B adalah TIMER
+              var tVal = String(timerVals[dataR][1] || '').trim();
+              if (tVal && tVal !== '--.--.--') {
+                splitMapByPosition[s + 1] = tVal;
               }
             }
           }
         }
+      }
 
-        // Fallback jika tidak terdeteksi
-        if (colsToUpdate.length === 0) {
-          colsToUpdate = [3]; // Default kolom D
-        }
+      var totalUpdated = 0;
 
-        // Tulis nilai urutan dan timer jika ada
-        for (var i = 0; i < data.length; i++) {
-          var bibInRow = String(data[i][colBib]).trim().toUpperCase();
-          if (bibInRow && Object.prototype.hasOwnProperty.call(resultMap, bibInRow)) {
-            for (var k = 0; k < colsToUpdate.length; k++) {
-              sh.getRange(i + 1, colsToUpdate[k] + 1).setValue(resultMap[bibInRow]);
+      // 2. Update MASTER WASIT (Kolom WASIT 1, WASIT 2, WASIT 3, VALID)
+      var masterWasitSheet = ss.getSheetByName('MASTER WASIT');
+      if (masterWasitSheet) {
+        var mwData = masterWasitSheet.getDataRange().getValues();
+        var mwColBib = 1; // Kolom B
+        var mwColsUpdate = []; // D, E, F, G
+
+        for (var r = 0; r < Math.min(mwData.length, 4); r++) {
+          for (var c = 0; c < mwData[r].length; c++) {
+            var h = String(mwData[r][c]).trim().toUpperCase();
+            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) mwColBib = c;
+            if (h === 'WASIT 1' || h === 'WASIT 2' || h === 'WASIT 3' || h === 'VALID') {
+              if (mwColsUpdate.indexOf(c) === -1) mwColsUpdate.push(c);
             }
-            if (colTimer !== -1 && timerMap[bibInRow]) {
-              sh.getRange(i + 1, colTimer + 1).setValue(timerMap[bibInRow]);
+          }
+        }
+        if (mwColsUpdate.length === 0) mwColsUpdate = [3, 4, 5, 6];
+
+        for (var i = 0; i < mwData.length; i++) {
+          var bib = String(mwData[i][mwColBib]).trim().toUpperCase();
+          if (bib && Object.prototype.hasOwnProperty.call(resultMap, bib)) {
+            for (var k = 0; k < mwColsUpdate.length; k++) {
+              masterWasitSheet.getRange(i + 1, mwColsUpdate[k] + 1).setValue(resultMap[bib]);
             }
             totalUpdated++;
           }
         }
+      }
+
+      // 3. Update WASIT 1, WASIT 2, WASIT 3 (Kolom URUTAN)
+      ['WASIT 1', 'WASIT 2', 'WASIT 3'].forEach(function(shName) {
+        var sh = ss.getSheetByName(shName);
+        if (!sh) return;
+        var data = sh.getDataRange().getValues();
+        var colBib = 1;
+        var colUrutan = 3; // Kolom D
+        for (var r = 0; r < Math.min(data.length, 4); r++) {
+          for (var c = 0; c < data[r].length; c++) {
+            var h = String(data[r][c]).trim().toUpperCase();
+            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
+            if (h === 'URUTAN') colUrutan = c;
+          }
+        }
+        for (var i = 0; i < data.length; i++) {
+          var bib = String(data[i][colBib]).trim().toUpperCase();
+          if (bib && Object.prototype.hasOwnProperty.call(resultMap, bib)) {
+            sh.getRange(i + 1, colUrutan + 1).setValue(resultMap[bib]);
+          }
+        }
       });
+
+      // 4. Update MASTER DATABASE (Kolom URUTAN, TIMER, REMARKS)
+      var masterDbSheet = ss.getSheetByName('MASTER DATABASE');
+      if (masterDbSheet) {
+        var dbData = masterDbSheet.getDataRange().getValues();
+        var colBib = 1;    // B: NOMOR DADA
+        var colTimer = 3;  // D: TIMER
+        var colUrutan = 4; // E: URUTAN
+        var colRemarks = 5;// F: REMARKS
+
+        for (var r = 0; r < Math.min(dbData.length, 4); r++) {
+          for (var c = 0; c < dbData[r].length; c++) {
+            var h = String(dbData[r][c]).trim().toUpperCase();
+            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
+            if (h === 'TIMER' || h === 'WAKTU') colTimer = c;
+            if (h === 'URUTAN') colUrutan = c;
+            if (h === 'REMARKS' || h === 'STATUS') colRemarks = c;
+          }
+        }
+
+        for (var i = 0; i < dbData.length; i++) {
+          var bib = String(dbData[i][colBib]).trim().toUpperCase();
+          if (bib && Object.prototype.hasOwnProperty.call(resultMap, bib)) {
+            var pos = resultMap[bib];
+            masterDbSheet.getRange(i + 1, colUrutan + 1).setValue(pos);
+
+            // Remarks: QUALIFIED jika ranking 1-5
+            var numPos = parseInt(pos, 10);
+            if (!isNaN(numPos) && numPos <= 5) {
+              masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('QUALIFIED');
+            } else {
+              masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('NOT QUALIFIED');
+            }
+
+            // Pasangkan TIMER dari tab TIMER jika tersedia
+            if (!isNaN(numPos) && splitMapByPosition[numPos]) {
+              masterDbSheet.getRange(i + 1, colTimer + 1).setValue(splitMapByPosition[numPos]);
+            }
+          }
+        }
+      }
 
       SpreadsheetApp.flush();
 
-      // Lepaskan lock penulisan sheet sebelum sinkronisasi agar tidak terjadi deadlock
       try { lock.releaseLock(); } catch(e) {}
       lock = null;
 
-      // Langsung picu sinkronisasi data ke Supabase & Leaderboard TV (skipLock = true)
+      // Sinkronkan ke Supabase & TV
       var syncResult = runSync_(true, true);
 
       return ContentService.createTextOutput(JSON.stringify({
         ok: true,
-        message: 'Berhasil mencatat ' + totalUpdated + ' urutan di Sheet (' + (syncResult.message || '') + ')',
+        message: 'Berhasil mencatat hasil wasit Match ' + matchId + ' (' + (syncResult.message || '') + ')',
         matchId: payload.matchId,
         matchTitle: payload.matchTitle
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // =========================================================================
+    // AKSI 2: SUBMIT TIMER DARI MEJA TIMEKEEPER (/timer)
+    // =========================================================================
     if (payload.action === 'SUBMIT_TIMER') {
       var splits = payload.splits || [];
       var matchId = payload.matchId;
       var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-      // 1. Tulis ke tab TIMER (jika tab tersebut ada di Sheet)
+      // 1. TULIS KE TAB TIMER (DI KOLOM B, PULIHKAN KOLOM A KE 1..N)
       var timerSheet = ss.getSheetByName('TIMER');
       if (timerSheet) {
-        var timerData = timerSheet.getDataRange().getValues();
-        var targetCol = -1;
-        for (var c = 0; c < (timerData[0] ? timerData[0].length : 0); c++) {
-          var h = String(timerData[0][c] || '').toUpperCase();
-          if (h.indexOf('MATCH ' + matchId) !== -1 || h.indexOf('M' + matchId) !== -1) {
-            targetCol = c;
+        var timerVals = timerSheet.getDataRange().getValues();
+        var matchRowIdx = -1;
+        var matchRegex = new RegExp('MATCH\\s*' + matchId + '\\b', 'i');
+
+        for (var r = 0; r < timerVals.length; r++) {
+          if (matchRegex.test(String(timerVals[r][0] || ''))) {
+            matchRowIdx = r;
             break;
           }
         }
-        if (targetCol === -1 && timerData[1]) {
-          for (var c2 = 0; c2 < timerData[1].length; c2++) {
-            var h2 = String(timerData[1][c2] || '').toUpperCase();
-            if (h2.indexOf('MATCH ' + matchId) !== -1) {
-              targetCol = c2;
-              break;
-            }
-          }
-        }
 
-        if (targetCol !== -1) {
-          var colWrite = targetCol;
-          if (String(timerData[0][targetCol] || '').toUpperCase().indexOf('TIMER') === -1 &&
-              targetCol + 1 < timerData[0].length &&
-              String(timerData[0][targetCol + 1] || '').toUpperCase().indexOf('TIMER') !== -1) {
-            colWrite = targetCol + 1;
-          }
+        if (matchRowIdx !== -1) {
+          var headerR = matchRowIdx + 1; // Baris subheader ("No.", "TIMER")
+          var colNo = 0;    // Kolom A: No.
+          var colTimer = 1; // Kolom B: TIMER
+
           for (var s = 0; s < splits.length; s++) {
-            var rowIdx = s + 3;
-            if (rowIdx <= timerSheet.getMaxRows()) {
-              timerSheet.getRange(rowIdx, colWrite + 1).setValue(splits[s].timer);
+            var dataR = headerR + 1 + s;
+            if (dataR < timerVals.length) {
+              // Pulihkan nomor urut 1, 2, 3... di Kolom A
+              timerSheet.getRange(dataR + 1, colNo + 1).setValue(s + 1);
+              // Tulis waktu split resmi di Kolom B (TIMER)
+              timerSheet.getRange(dataR + 1, colTimer + 1).setValue(splits[s].timer);
             }
           }
         }
       }
 
-      // 2. Tulis ke tab MASTER DATABASE & LIVE VISUAL berdasarkan urutan juara
+      // 2. TULIS KE TAB MASTER DATABASE (HANYA UNTUK PESERTA MATCH INI YANG SUDAH DINILAI WASIT)
       var splitMapByPosition = {};
       splits.forEach(function(sp) {
         if (sp && sp.position && sp.timer) {
@@ -491,49 +551,125 @@ function doPost(e) {
         }
       });
 
-      var targetSheetsTimer = [
-        ss.getSheetByName('MASTER DATABASE'),
-        ss.getSheetByName('LIVE VISUAL'),
-        ss.getSheetByName('DATA KLASEMEN FIX')
-      ].filter(Boolean);
+      var masterDbSheet = ss.getSheetByName('MASTER DATABASE');
+      var updatedTimersCount = 0;
+      if (masterDbSheet) {
+        var dbData = masterDbSheet.getDataRange().getValues();
+        var colBib = 1;
+        var colTimer = 3;
+        var colUrutan = 4;
 
-      var totalTimerUpdated = 0;
-      targetSheetsTimer.forEach(function(sh) {
-        var data = sh.getDataRange().getValues();
-        var colUrutan = -1;
-        var colTimer = -1;
-
-        for (var r = 0; r < Math.min(data.length, 4); r++) {
-          for (var c = 0; c < data[r].length; c++) {
-            var header = String(data[r][c]).trim().toUpperCase();
-            if (header === 'URUTAN' || header === 'RANKING' || header === 'POSISI') colUrutan = c;
-            if (header === 'TIMER' || header === 'WAKTU' || header === 'TIME' || header === 'DURASI') colTimer = c;
+        for (var r = 0; r < Math.min(dbData.length, 4); r++) {
+          for (var c = 0; c < dbData[r].length; c++) {
+            var h = String(dbData[r][c]).trim().toUpperCase();
+            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
+            if (h === 'TIMER' || h === 'WAKTU') colTimer = c;
+            if (h === 'URUTAN') colUrutan = c;
           }
         }
 
-        if (colTimer !== -1 && colUrutan !== -1) {
-          for (var i = 0; i < data.length; i++) {
-            var urutanVal = parseInt(data[i][colUrutan], 10);
+        // Cari blok match ini di MASTER DATABASE
+        var matchDbStart = -1;
+        var matchRegex = new RegExp('MATCH\\s*' + matchId + '\\b', 'i');
+        for (var r = 0; r < dbData.length; r++) {
+          if (matchRegex.test(String(dbData[r][0] || '')) || matchRegex.test(String(dbData[r][colBib] || ''))) {
+            matchDbStart = r;
+            break;
+          }
+        }
+
+        // Jika blok match ditemukan, periksa hanya peserta di blok match tersebut
+        if (matchDbStart !== -1) {
+          for (var r = matchDbStart + 1; r < dbData.length; r++) {
+            // Berhenti jika sudah masuk ke Match berikutnya
+            var cellA = String(dbData[r][0] || '').trim();
+            if (r > matchDbStart + 1 && /MATCH\s*\d+/i.test(cellA)) break;
+
+            var bib = String(dbData[r][colBib] || '').trim().toUpperCase();
+            if (!bib) continue;
+
+            var urutanVal = parseInt(dbData[r][colUrutan], 10);
             if (!isNaN(urutanVal) && splitMapByPosition[urutanVal]) {
-              sh.getRange(i + 1, colTimer + 1).setValue(splitMapByPosition[urutanVal]);
-              totalTimerUpdated++;
+              masterDbSheet.getRange(r + 1, colTimer + 1).setValue(splitMapByPosition[urutanVal]);
+              updatedTimersCount++;
             }
           }
         }
-      });
+      }
 
       SpreadsheetApp.flush();
 
       try { lock.releaseLock(); } catch(e) {}
       lock = null;
 
-      var syncResultTimer = runSync_(true, true);
+      // HANYA sinkronkan ke Supabase jika wasit sudah menilai match ini (updatedTimersCount > 0)
+      var syncResultMsg = 'Tersimpan di tab TIMER.';
+      if (updatedTimersCount > 0) {
+        var syncResult = runSync_(true, true);
+        syncResultMsg = 'Tersambung ke ' + updatedTimersCount + ' peserta & tersinkron ke TV (' + (syncResult.message || '') + ')';
+      }
 
       return ContentService.createTextOutput(JSON.stringify({
         ok: true,
-        message: 'Berhasil mencatat timer ' + splits.length + ' split (' + (syncResultTimer.message || '') + ')',
+        message: 'Berhasil mencatat ' + splits.length + ' split waktu di tab TIMER. ' + syncResultMsg,
         matchId: payload.matchId,
         matchTitle: payload.matchTitle
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // =========================================================================
+    // AKSI 3: REPAIR / BERSIHKAN DATA SHEET YANG RUSAK ATAU SALAH KOLOM
+    // =========================================================================
+    if (payload.action === 'REPAIR_SHEETS') {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var timerSheet = ss.getSheetByName('TIMER');
+      var repairedCount = 0;
+
+      // Perbaiki tab TIMER: Kembalikan Kolom A ke 1..N dan pindahkan timer yang salah tempat ke Kolom B
+      if (timerSheet) {
+        var tData = timerSheet.getDataRange().getValues();
+        var currentMatch = 0;
+        var inMatchData = false;
+        var matchItemIdx = 0;
+
+        for (var r = 0; r < tData.length; r++) {
+          var valA = String(tData[r][0] || '').trim();
+          var valB = String(tData[r][1] || '').trim();
+
+          if (/MATCH\s*(\d+)/i.test(valA)) {
+            currentMatch = parseInt(valA.match(/MATCH\s*(\d+)/i)[1], 10);
+            inMatchData = false;
+            matchItemIdx = 0;
+            continue;
+          }
+
+          if (valA === 'No.' || valB === 'TIMER') {
+            inMatchData = true;
+            matchItemIdx = 0;
+            continue;
+          }
+
+          if (inMatchData && valA) {
+            matchItemIdx++;
+            // Jika Kolom A berisi format timer (mengandung titik dua atau detik):
+            if (valA.indexOf(':') !== -1 || valA.indexOf('.') !== -1) {
+              timerSheet.getRange(r + 1, 1).setValue(matchItemIdx); // Kembalikan angka 1, 2, 3..
+              timerSheet.getRange(r + 1, 2).setValue(valA); // Pindahkan timer ke Kolom B
+              repairedCount++;
+            }
+          }
+        }
+      }
+
+      SpreadsheetApp.flush();
+      try { lock.releaseLock(); } catch(e) {}
+      lock = null;
+
+      var syncResult = runSync_(true, true);
+
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        message: 'Sheet berhasil diperbaiki! ' + repairedCount + ' baris timer dipindahkan ke Kolom B. ' + (syncResult.message || '')
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
