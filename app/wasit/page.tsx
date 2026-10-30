@@ -245,49 +245,57 @@ export default function WasitPage() {
     }
   }, [])
 
-  // Fungsi flush antrean offline ke server
+  // Fungsi flush antrean offline ke server (dengan lock guard agar tidak double-fire)
+  const isFlushingRef = React.useRef(false)
   const flushPendingQueue = useCallback(async () => {
-    const raw = localStorage.getItem('olimpiakids_pending_submissions')
-    if (!raw) return
-    let queue: PendingSubmission[] = []
+    if (isFlushingRef.current) return
+    isFlushingRef.current = true
+
     try {
-      queue = JSON.parse(raw)
-    } catch {
-      return
-    }
-    if (!queue.length) return
-
-    const remaining: PendingSubmission[] = []
-    let successCount = 0
-
-    for (const item of queue) {
+      const raw = localStorage.getItem('olimpiakids_pending_submissions')
+      if (!raw) return
+      let queue: PendingSubmission[] = []
       try {
-        const res = await fetch('/api/wasit/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(item),
-        })
-        const data = await res.json()
-        if (data.ok) {
-          successCount++
-        } else {
+        queue = JSON.parse(raw)
+      } catch {
+        return
+      }
+      if (!queue.length) return
+
+      const remaining: PendingSubmission[] = []
+      let successCount = 0
+
+      for (const item of queue) {
+        try {
+          const res = await fetch('/api/wasit/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item),
+          })
+          const data = await res.json()
+          if (data.ok) {
+            successCount++
+          } else {
+            remaining.push(item)
+          }
+        } catch {
           remaining.push(item)
         }
-      } catch {
-        remaining.push(item)
       }
-    }
 
-    if (remaining.length > 0) {
-      localStorage.setItem('olimpiakids_pending_submissions', JSON.stringify(remaining))
-      setPendingSubmissions(remaining)
-    } else {
-      localStorage.removeItem('olimpiakids_pending_submissions')
-      setPendingSubmissions([])
-    }
+      if (remaining.length > 0) {
+        localStorage.setItem('olimpiakids_pending_submissions', JSON.stringify(remaining))
+        setPendingSubmissions(remaining)
+      } else {
+        localStorage.removeItem('olimpiakids_pending_submissions')
+        setPendingSubmissions([])
+      }
 
-    if (successCount > 0) {
-      showToast(`✅ ${successCount} hasil match offline berhasil disinkronkan ke Sheets!`, 'success')
+      if (successCount > 0) {
+        showToast(`✅ ${successCount} hasil match offline berhasil disinkronkan ke Sheets!`, 'success')
+      }
+    } finally {
+      isFlushingRef.current = false
     }
   }, [showToast])
 
@@ -847,7 +855,13 @@ export default function WasitPage() {
               index={index}
               isMatchActive={isMatchActive}
               onToggleDnf={toggleDnf}
-              onOpenMoveModal={(participant) => setMoveModal({ participant, fromMatchId: currentMatch.id })}
+              onOpenMoveModal={(participant) => {
+                const firstAvailable = matches.find(
+                  (m) => m.id !== currentMatch.id && matchStates[m.id]?.status !== 'final'
+                )
+                if (firstAvailable) setTargetMatchId(firstAvailable.id)
+                setMoveModal({ participant, fromMatchId: currentMatch.id })
+              }}
             />
           ))}
         </Reorder.Group>
@@ -1095,11 +1109,16 @@ export default function WasitPage() {
                   onChange={(e) => setTargetMatchId(Number(e.target.value))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-yellow-400"
                 >
-                  {matches.map((m) => (
-                    <option key={m.id} value={m.id} disabled={m.id === moveModal.fromMatchId}>
-                      {m.title} {m.id === moveModal.fromMatchId ? '(Match Saat Ini)' : ''}
-                    </option>
-                  ))}
+                  {matches.map((m) => {
+                    const isCurrent = m.id === moveModal.fromMatchId
+                    const isFinal = matchStates[m.id]?.status === 'final'
+                    const isDisabled = isCurrent || isFinal
+                    return (
+                      <option key={m.id} value={m.id} disabled={isDisabled}>
+                        {m.title} {isCurrent ? '(Match Saat Ini)' : isFinal ? '(Sudah Final / Selesai)' : ''}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 

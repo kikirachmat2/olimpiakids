@@ -402,7 +402,7 @@ function doPost(e) {
         // Tulis nilai urutan
         for (var i = 0; i < data.length; i++) {
           var bibInRow = String(data[i][colBib]).trim().toUpperCase();
-          if (resultMap[bibInRow] !== undefined) {
+          if (bibInRow && Object.prototype.hasOwnProperty.call(resultMap, bibInRow)) {
             for (var k = 0; k < colsToUpdate.length; k++) {
               sh.getRange(i + 1, colsToUpdate[k] + 1).setValue(resultMap[bibInRow]);
             }

@@ -206,6 +206,23 @@ export default function LiveLeaderboard() {
 
     const stepReveal = (stepIdx: number) => {
       if (pendingQueueRef.current.length === 0) {
+        // Periksa apakah ada batch match baru yang masuk saat proses reveal sebelumnya berjalan
+        const currentBoard = leaderboardRef.current
+        const newlyArrivedDuringReveal = targetDataRef.current.filter((newItem) => {
+          const cur = currentBoard.find((c) => c.bib_number === newItem.bib_number)
+          const hadNoTime = !cur || cur.duration_ms === null || cur.duration_ms === undefined
+          const nowHasTime = newItem.duration_ms !== null && newItem.duration_ms !== undefined
+          return hadNoTime && nowHasTime
+        })
+
+        if (newlyArrivedDuringReveal.length > 0) {
+          const nextBatch = [...newlyArrivedDuringReveal].sort((a, b) => (b.rank || 0) - (a.rank || 0))
+          pendingQueueRef.current = nextBatch
+          setRevealProgress({ current: 0, total: nextBatch.length })
+          stepReveal(0)
+          return
+        }
+
         // Semua nama selesai direveal!
         setLeaderboard(targetDataRef.current)
         leaderboardRef.current = targetDataRef.current
