@@ -45,12 +45,13 @@ export async function saveActiveSession(session: ActiveMatchSession): Promise<bo
   try {
     const payload = {
       ...session,
+      status: (session.status || 'LOCKED').toUpperCase(),
       updatedAt: new Date().toISOString(),
     }
     const { error } = await supabase.from('race_events').upsert({
       id: SESSION_EVENT_ID,
       name: JSON.stringify(payload),
-      status: session.status === 'RUNNING' ? 'running' : 'idle',
+      status: payload.status === 'RUNNING' ? 'running' : 'idle',
       start_time: session.startTime ? new Date(session.startTime).toISOString() : new Date().toISOString(),
     })
     if (error) {
@@ -77,7 +78,13 @@ export async function getActiveSession(): Promise<ActiveMatchSession> {
 
     if (!error && data?.name) {
       const parsed = JSON.parse(data.name) as ActiveMatchSession
-      return parsed
+      if (parsed) {
+        parsed.status = (parsed.status || 'LOCKED').toUpperCase() as MatchLockStatus
+        parsed.participants = parsed.participants || []
+        parsed.splits = parsed.splits || []
+        parsed.dnfList = parsed.dnfList || []
+        return parsed
+      }
     }
   } catch (err) {
     console.warn('Gagal muat session dari Supabase:', err)

@@ -725,9 +725,10 @@ export default function WasitPage() {
   // =========================================================================
   // VIEW 2: MATCH DETAIL VIEW (GEMBOK, ATUR URUTAN, MANUAL EDIT, & KUNCI)
   // =========================================================================
-  const isLocked = session.status === 'LOCKED'
-  const isFinal = session.status === 'LOCKED_FINAL'
-  const isUnlockedOrActive = session.status === 'UNLOCKED' || session.status === 'RUNNING' || session.status === 'TIMER_COMPLETED'
+  const statusUpper = (session.status || 'LOCKED').toUpperCase()
+  const isLocked = statusUpper === 'LOCKED'
+  const isFinal = statusUpper === 'LOCKED_FINAL'
+  const isUnlockedOrActive = statusUpper === 'UNLOCKED' || statusUpper === 'RUNNING' || statusUpper === 'TIMER_COMPLETED'
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans pb-16">
