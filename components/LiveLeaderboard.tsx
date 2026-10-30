@@ -7,7 +7,7 @@ import { LeaderboardItem, RaceEvent } from '@/types/database'
 import { getActiveRace, getLeaderboard } from '@/lib/queries'
 import { supabase } from '@/lib/supabase'
 import RankRow, { RowCelebration, formatTimerMMSSCC } from './RankRow'
-import { fireTop3Confetti, fireChampionConfetti, playCelebrationSound } from '@/lib/celebration'
+import { fireTop3Confetti, fireChampionConfetti, playCelebrationSound, playRevealSound } from '@/lib/celebration'
 
 interface CelebrationTriggerData {
   type: 'champion' | 'top3'
@@ -29,11 +29,43 @@ export default function LiveLeaderboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [logoError, setLogoError] = useState(false)
 
+  // PENGATURAN JEDA ANTAR NAMA BERBARENGAN (10 - 15 DETIK)
+  const [revealDelay, setRevealDelay] = useState<number>(12)
+  const [isRevealing, setIsRevealing] = useState(false)
+  const [revealingItem, setRevealingItem] = useState<LeaderboardItem | null>(null)
+  const [revealProgress, setRevealProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 })
+  const [countdown, setCountdown] = useState<number>(0)
+
+  const isRevealingRef = React.useRef(false)
+  const revealDelayRef = React.useRef(revealDelay)
+  const targetDataRef = React.useRef<LeaderboardItem[]>([])
+  const pendingQueueRef = React.useRef<LeaderboardItem[]>([])
+  const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null)
+
   const previousRanksRef = React.useRef<Map<string, number>>(new Map())
   const toastTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const celebrationTimerRef = React.useRef<NodeJS.Timeout | null>(null)
   const isMutedRef = React.useRef(isMuted)
   const leaderboardRef = React.useRef(leaderboard)
+
+  useEffect(() => {
+    revealDelayRef.current = revealDelay
+  }, [revealDelay])
+
+  useEffect(() => {
+    isRevealingRef.current = isRevealing
+  }, [isRevealing])
+
+  // Muat preferensi jeda dari localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('olimpiakids_reveal_delay')
+      if (saved) {
+        const val = parseInt(saved, 10)
+        if (val >= 10 && val <= 15) setRevealDelay(val)
+      }
+    } catch {}
+  }, [])
 
   // Hitung jumlah sisa bayi yang belum tanding (skor/timer belum diinput / null)
   const remainingCount = React.useMemo(() => {
@@ -103,13 +135,178 @@ export default function LiveLeaderboard() {
     }, 4500)
   }, [])
 
-  // Proses update peringkat secara instan dan picu selebrasi jika ada yang masuk 3 besar / Juara 1
+  // 1. LEWATI JEDA / TAMPILKAN SEMUA LANGSUNG (Emergency Override untuk Operator TV)
+  const skipReveal = useCallback(() => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    pendingQueueRef.current = []
+    if (targetDataRef.current.length > 0) {
+      setLeaderboard(targetDataRef.current)
+      leaderboardRef.current = targetDataRef.current
+    }
+    setIsRevealing(false)
+    isRevealingRef.current = false
+    setRevealingItem(null)
+    setCountdown(0)
+    setCelebrations({})
+  }, [])
+
+  // 2. REVEAL TUNGGAL (Jika hanya 1 nama yang finish)
+  const revealSingleItem = useCallback((item: LeaderboardItem, nextData: LeaderboardItem[]) => {
+    setLeaderboard(nextData)
+    leaderboardRef.current = nextData
+    targetDataRef.current = nextData
+
+    const currentRank = item.rank || 1
+    if (currentRank === 1) {
+      setCelebrations({ [item.bib_number]: 'champion' })
+      fireChampionConfetti()
+      playCelebrationSound('champion', isMutedRef.current)
+      setActiveToast({
+        type: 'champion',
+        title: '👑 JUARA 1 BARU!',
+        subtitle: `${item.participant_name} merebut posisi 1 (${formatTimerMMSSCC(item.duration_ms)})`,
+      })
+    } else if (currentRank <= 3) {
+      setCelebrations({ [item.bib_number]: 'top3' })
+      fireTop3Confetti()
+      playCelebrationSound('top3', isMutedRef.current)
+      setActiveToast({
+        type: 'top3',
+        title: `🎉 MASUK PERINGKAT ${currentRank}!`,
+        subtitle: `${item.participant_name} menembus 3 besar (${formatTimerMMSSCC(item.duration_ms)})`,
+      })
+    } else {
+      setCelebrations({ [item.bib_number]: 'reveal' })
+      playRevealSound(isMutedRef.current)
+      setActiveToast({
+        type: 'top3',
+        title: `🍼 HASIL FINISH PERINGKAT ${currentRank}`,
+        subtitle: `${item.participant_name} (${formatTimerMMSSCC(item.duration_ms)})`,
+      })
+    }
+
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setActiveToast(null), 4500)
+    if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
+    celebrationTimerRef.current = setTimeout(() => setCelebrations({}), 4000)
+  }, [])
+
+  // 3. STAGGERED REVEAL QUEUE: JEDA 10 - 15 DETIK PER NAMA JIKA MASUK BERSAMAAN
+  const startStaggeredReveal = useCallback((newlyFinished: LeaderboardItem[], finalData: LeaderboardItem[]) => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+
+    // Urutkan reveal: dari peringkat paling bawah naik ke Juara 1 (format suspense TV)
+    const sortedToReveal = [...newlyFinished].sort((a, b) => (b.rank || 0) - (a.rank || 0))
+
+    targetDataRef.current = finalData
+    pendingQueueRef.current = sortedToReveal
+    setIsRevealing(true)
+    isRevealingRef.current = true
+    setRevealProgress({ current: 0, total: sortedToReveal.length })
+
+    const stepReveal = (stepIdx: number) => {
+      if (pendingQueueRef.current.length === 0) {
+        // Semua nama selesai direveal!
+        setLeaderboard(targetDataRef.current)
+        leaderboardRef.current = targetDataRef.current
+        setIsRevealing(false)
+        isRevealingRef.current = false
+        setRevealingItem(null)
+        setCountdown(0)
+        setTimeout(() => setCelebrations({}), 3500)
+        return
+      }
+
+      const item = pendingQueueRef.current.shift()!
+      setRevealingItem(item)
+      setRevealProgress({ current: stepIdx + 1, total: sortedToReveal.length })
+
+      // Update tampilan papan skor bertahap:
+      // Bayi ini mendapatkan nilai durasinya, sedangkan bayi di antrean berikutnya masih menunggu
+      const currentBoard = [...leaderboardRef.current]
+      const nextBoard = currentBoard.map((c) => {
+        if (c.bib_number === item.bib_number) {
+          return { ...c, duration_ms: item.duration_ms, rank: item.rank }
+        }
+        return c
+      })
+
+      // Sortir urutan: yang sudah ada catatan waktu di atas, yang belum tetap di bawah
+      nextBoard.sort((a, b) => {
+        const hasA = a.duration_ms !== null && a.duration_ms !== undefined
+        const hasB = b.duration_ms !== null && b.duration_ms !== undefined
+        if (hasA && hasB) return (a.duration_ms || 0) - (b.duration_ms || 0)
+        if (hasA && !hasB) return -1
+        if (!hasA && hasB) return 1
+        return 0
+      })
+
+      nextBoard.forEach((p, idx) => {
+        p.rank = idx + 1
+      })
+
+      setLeaderboard(nextBoard)
+      leaderboardRef.current = nextBoard
+
+      // Selebrasi & efek audio per nama yang muncul
+      const currentRank = item.rank || 1
+      const isChamp = currentRank === 1
+      const isTop3 = currentRank <= 3
+
+      if (isChamp) {
+        setCelebrations({ [item.bib_number]: 'champion' })
+        fireChampionConfetti()
+        playCelebrationSound('champion', isMutedRef.current)
+        setActiveToast({
+          type: 'champion',
+          title: '👑 JUARA 1 BARU!',
+          subtitle: `${item.participant_name} merebut posisi 1 (${formatTimerMMSSCC(item.duration_ms)})`,
+        })
+      } else if (isTop3) {
+        setCelebrations({ [item.bib_number]: 'top3' })
+        fireTop3Confetti()
+        playCelebrationSound('top3', isMutedRef.current)
+        setActiveToast({
+          type: 'top3',
+          title: `🎉 MASUK PERINGKAT ${currentRank}!`,
+          subtitle: `${item.participant_name} menembus 3 besar (${formatTimerMMSSCC(item.duration_ms)})`,
+        })
+      } else {
+        setCelebrations({ [item.bib_number]: 'reveal' })
+        playRevealSound(isMutedRef.current)
+        setActiveToast({
+          type: 'top3',
+          title: `🍼 HASIL FINISH PERINGKAT ${currentRank}`,
+          subtitle: `${item.participant_name} (${formatTimerMMSSCC(item.duration_ms)})`,
+        })
+      }
+
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = setTimeout(() => setActiveToast(null), 4500)
+
+      // Mulai countdown jeda untuk nama berikutnya (10 - 15 detik)
+      let timeLeft = revealDelayRef.current
+      setCountdown(timeLeft)
+
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = setInterval(() => {
+        timeLeft -= 1
+        setCountdown(Math.max(0, timeLeft))
+        if (timeLeft <= 0) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+          stepReveal(stepIdx + 1)
+        }
+      }, 1000)
+    }
+
+    stepReveal(0)
+  }, [])
+
+  // 4. Proses update peringkat: deteksi apakah data masuk bersamaan atau tunggal
   const applyLeaderboardUpdate = useCallback((nextData: LeaderboardItem[]) => {
     const prevRanks = previousRanksRef.current
-    const newCelebrations: Record<string, RowCelebration> = {}
-    let celebrationToTrigger: CelebrationTriggerData | null = null
 
-    // Initial load: simpan posisi awal
+    // Initial load: langsung render penuh tanpa antrean
     if (prevRanks.size === 0) {
       for (let idx = 0; idx < nextData.length; idx++) {
         const item = nextData[idx]
@@ -117,37 +314,32 @@ export default function LiveLeaderboard() {
         prevRanks.set(item.bib_number, rank)
       }
       setLeaderboard(nextData)
+      leaderboardRef.current = nextData
+      targetDataRef.current = nextData
       return
     }
 
-    // Deteksi naik ke 3 besar / juara 1
-    for (let idx = 0; idx < nextData.length; idx++) {
-      const item = nextData[idx]
-      const newRank = item.rank || idx + 1
-      const oldRank = prevRanks.get(item.bib_number)
-
-      if (oldRank !== undefined && oldRank !== newRank && newRank < oldRank) {
-        if (newRank === 1) {
-          newCelebrations[item.bib_number] = 'champion'
-          celebrationToTrigger = {
-            type: 'champion',
-            name: item.participant_name,
-            rank: 1,
-            timeStr: formatTimerMMSSCC(item.duration_ms),
-          }
-        } else if (newRank <= 3 && !celebrationToTrigger) {
-          newCelebrations[item.bib_number] = 'top3'
-          celebrationToTrigger = {
-            type: 'top3',
-            name: item.participant_name,
-            rank: newRank,
-            timeStr: formatTimerMMSSCC(item.duration_ms),
-          }
-        }
-      }
+    // Jika sedang dalam proses reveal animasi bertahap, simpan data final tapi jangan potong animasi
+    if (isRevealingRef.current) {
+      targetDataRef.current = nextData
+      return
     }
 
-    // Perbarui map peringkat sekarang
+    // Deteksi nama-nama yang baru saja selesai bertanding di batch update ini
+    const currentBoard = leaderboardRef.current
+    const newlyFinished: LeaderboardItem[] = []
+
+    nextData.forEach((newItem) => {
+      const cur = currentBoard.find((c) => c.bib_number === newItem.bib_number)
+      const hadNoTime = !cur || cur.duration_ms === null || cur.duration_ms === undefined
+      const nowHasTime = newItem.duration_ms !== null && newItem.duration_ms !== undefined
+      const timeChanged = cur && cur.duration_ms !== newItem.duration_ms && nowHasTime
+      if ((hadNoTime && nowHasTime) || timeChanged) {
+        newlyFinished.push(newItem)
+      }
+    })
+
+    // Perbarui map peringkat
     const newRanksMap = new Map<string, number>()
     for (let idx = 0; idx < nextData.length; idx++) {
       const item = nextData[idx]
@@ -155,44 +347,24 @@ export default function LiveLeaderboard() {
     }
     previousRanksRef.current = newRanksMap
 
-    // Update state leaderboard langsung (Framer Motion layout="position" menangani animasi perpindahan secara otomatis)
-    setLeaderboard(nextData)
-
-    if (celebrationToTrigger) {
-      const cel: CelebrationTriggerData = celebrationToTrigger
-      setCelebrations(newCelebrations)
-
-      setTimeout(() => {
-        if (cel.type === 'champion') {
-          fireChampionConfetti()
-          playCelebrationSound('champion', isMutedRef.current)
-          setActiveToast({
-            type: 'champion',
-            title: 'JUARA 1 BARU!',
-            subtitle: `${cel.name} merebut posisi 1 (${cel.timeStr})`,
-          })
-        } else {
-          fireTop3Confetti()
-          playCelebrationSound('top3', isMutedRef.current)
-          setActiveToast({
-            type: 'top3',
-            title: `MASUK PERINGKAT ${cel.rank}!`,
-            subtitle: `${cel.name} menembus 3 besar (${cel.timeStr})`,
-          })
-        }
-
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-        toastTimerRef.current = setTimeout(() => {
-          setActiveToast(null)
-        }, 4500)
-      }, 300)
-
-      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
-      celebrationTimerRef.current = setTimeout(() => {
-        setCelebrations({})
-      }, 4000)
+    // Tidak ada waktu baru yang masuk
+    if (newlyFinished.length === 0) {
+      setLeaderboard(nextData)
+      leaderboardRef.current = nextData
+      targetDataRef.current = nextData
+      return
     }
-  }, [])
+
+    // Hanya 1 nama
+    if (newlyFinished.length === 1) {
+      revealSingleItem(newlyFinished[0], nextData)
+      return
+    }
+
+    // NAMA-NAMA MASUK BERSAMAAN (1 MATCH SELESAI / BATCH SHEET):
+    // KASIH JEDA PER NAMA 10 - 15 DETIK!
+    startStaggeredReveal(newlyFinished, nextData)
+  }, [revealSingleItem, startStaggeredReveal])
 
   // 1. Fetch data dari Supabase
   const loadLeaderboardData = useCallback(async () => {
@@ -258,6 +430,8 @@ export default function LiveLeaderboard() {
     // Keyboard Hotkeys untuk Operator Panggung:
     // [C] = Test Selebrasi Confetti (gladi resik)
     // [M] = Toggle Mute Audio
+    // [Spasi] = Lewati Reveal / Tampilkan Semua Langsung
+    // [J] / [T] = Ganti Jeda (10s -> 12s -> 15s)
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName.toLowerCase()
       if (activeTag === 'input' || activeTag === 'textarea') return
@@ -268,6 +442,16 @@ export default function LiveLeaderboard() {
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault()
         setIsMuted((prev) => !prev)
+      } else if (e.code === 'Space') {
+        e.preventDefault()
+        skipReveal()
+      } else if (e.key === 'j' || e.key === 'J' || e.key === 't' || e.key === 'T') {
+        e.preventDefault()
+        setRevealDelay((prev) => {
+          const next = prev === 10 ? 12 : prev === 12 ? 15 : 10
+          try { localStorage.setItem('olimpiakids_reveal_delay', next.toString()) } catch {}
+          return next
+        })
       }
     }
 
@@ -277,10 +461,11 @@ export default function LiveLeaderboard() {
       window.removeEventListener('keydown', handleKeyDown)
       supabase.removeChannel(channel)
       clearInterval(interval)
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current)
     }
-  }, [loadLeaderboardData, triggerTestCelebration])
+  }, [loadLeaderboardData, triggerTestCelebration, skipReveal])
 
   return (
     <div className="relative z-10 w-full max-w-6xl 2xl:max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-1 sm:py-2 lg:py-1 flex flex-col items-center justify-between h-full max-h-screen">
@@ -429,6 +614,51 @@ export default function LiveLeaderboard() {
         </div>
       </div>
 
+      {/* 2.5 STAGGERED REVEAL BANNER (JEDA 10 - 15 DETIK PER NAMA JIKA MASUK BERSAMAAN) */}
+      <AnimatePresence>
+        {isRevealing && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -6 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -6 }}
+            transition={{ duration: 0.3 }}
+            className="w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center justify-between shadow-lg border-2 border-white mb-1.5 sm:mb-2 shrink-0 overflow-hidden select-none"
+          >
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <span className="text-base sm:text-xl animate-pulse">⏱️</span>
+              <div className="font-display font-black text-xs sm:text-sm md:text-base truncate flex items-center gap-1.5">
+                <span className="text-amber-900 uppercase">
+                  REVEAL HASIL ({revealProgress.current}/{revealProgress.total}):
+                </span>
+                <span className="bg-white/95 px-2 py-0.5 rounded-lg text-amber-950 shadow-sm font-black truncate max-w-[140px] sm:max-w-xs">
+                  {revealingItem?.participant_name}
+                </span>
+                <span className="text-[11px] bg-amber-950 text-yellow-300 font-mono px-1.5 py-0.5 rounded font-black">
+                  #{revealingItem?.rank}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <div className="font-mono font-black text-xs sm:text-sm flex items-center gap-1">
+                <span className="opacity-75 hidden md:inline">Berikutnya:</span>
+                <span className="bg-amber-950 text-yellow-300 px-2 py-0.5 rounded-lg text-xs sm:text-sm font-black shadow-inner min-w-[32px] text-center">
+                  {countdown}s
+                </span>
+              </div>
+
+              <button
+                onClick={skipReveal}
+                className="bg-amber-950 hover:bg-black text-white font-bold text-[10px] sm:text-xs px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl active:scale-95 transition-all shadow-sm"
+                title="Tampilkan semua langsung tanpa jeda (Hotkey: Spasi)"
+              >
+                Lewati [Spasi]
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 3. RANKING CARD (CONTAINER UTAMA LEADERBOARD) - TAMPILKAN 10 BESAR SECARA PRESISI */}
       <div className="w-full bg-white/95 backdrop-blur-md rounded-xl sm:rounded-3xl border-[2.5px] sm:border-[3.5px] border-white shadow-xl sm:shadow-2xl p-1.5 sm:p-2.5 md:p-3 lg:p-3.5 overflow-hidden flex flex-col flex-1 min-h-0">
         {/* HEADER ROW TABEL (10% 20% 48% 22%) */}
@@ -470,6 +700,36 @@ export default function LiveLeaderboard() {
             )}
           </AnimatePresence>
         </div>
+      </div>
+
+      {/* 4. FLOATING OPERATOR CONTROLS (PENGATURAN JEDA & MUTE) */}
+      <div className="fixed bottom-2 right-2 sm:bottom-3 sm:right-3 z-50 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-white px-2.5 py-1 rounded-full text-[10px] sm:text-xs shadow-lg opacity-40 hover:opacity-100 transition-opacity">
+        <span className="text-slate-400 font-bold hidden sm:inline">⏱️ Jeda:</span>
+        {[10, 12, 15].map((sec) => (
+          <button
+            key={sec}
+            onClick={() => {
+              setRevealDelay(sec)
+              try { localStorage.setItem('olimpiakids_reveal_delay', sec.toString()) } catch {}
+            }}
+            className={`px-1.5 py-0.5 rounded-md font-bold transition-all ${
+              revealDelay === sec
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+            title={`Atur jeda reveal antar nama ke ${sec} detik`}
+          >
+            {sec}s
+          </button>
+        ))}
+        <span className="text-slate-600">|</span>
+        <button
+          onClick={() => setIsMuted((prev) => !prev)}
+          className="text-slate-300 hover:text-white"
+          title="Toggle Mute (Hotkey: M)"
+        >
+          {isMuted ? '🔇' : '🔊'}
+        </button>
       </div>
     </div>
   )

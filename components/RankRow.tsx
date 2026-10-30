@@ -4,7 +4,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 
 export type RowMovement = 'up' | 'down' | 'idle'
-export type RowCelebration = 'none' | 'top3' | 'champion'
+export type RowCelebration = 'none' | 'top3' | 'champion' | 'reveal'
 
 interface RankRowProps {
   rank: number
@@ -90,11 +90,14 @@ export default function RankRow({
 
   const isChampionCelebration = celebration === 'champion'
   const isTop3Celebration = celebration === 'top3'
+  const isRevealCelebration = celebration === 'reveal'
 
   const targetZIndex = isChampionCelebration
     ? 55
     : isTop3Celebration
     ? 50
+    : isRevealCelebration
+    ? 45
     : 20
 
   let celebrationClasses = ''
@@ -104,6 +107,9 @@ export default function RankRow({
   } else if (isTop3Celebration) {
     celebrationClasses =
       'ring-4 ring-amber-400 shadow-[0_6px_24px_rgba(245,158,11,0.55)]'
+  } else if (isRevealCelebration) {
+    celebrationClasses =
+      'ring-4 ring-sky-400 shadow-[0_6px_25px_rgba(56,189,248,0.75)] animate-pulse'
   }
 
   return (
