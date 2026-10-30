@@ -690,7 +690,7 @@ export const DEFAULT_MATCHES: WasitMatch[] = [
       {
         "position": 8,
         "bib_number": "288F",
-        "name": "KAYLA AGATHA",
+        "name": "FREYA KALUNA",
         "urutan": null,
         "status": "registered"
       },
