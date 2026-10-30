@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzW7iHQryhHG5Qw7-m3Kx-OGZ1RcykxdzCeQJIRE3slHSm-dirgVWSj5P_7WZQRJT0QCA/exec'
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -20,11 +22,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // 1. Forward ke Google Apps Script Web App (dari custom settings atau env)
+    // 1. Forward ke Google Apps Script Web App (dari custom settings, env, atau default)
     const scriptWebhookUrl = (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://script.google.com/')) 
       ? webhookUrl 
-      : process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL
+      : (process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL || DEFAULT_WEBHOOK_URL)
     let webhookStatus = 'skipped'
+    let webhookDetails: unknown = null
 
     if (scriptWebhookUrl) {
       try {
@@ -38,9 +41,16 @@ export async function POST(request: Request) {
             results,
             submittedAt: new Date().toISOString(),
           }),
+          redirect: 'follow',
         })
+        
         if (scriptRes.ok) {
           webhookStatus = 'success'
+          try {
+            webhookDetails = await scriptRes.json()
+          } catch {
+            // ignore
+          }
         } else {
           webhookStatus = `failed_${scriptRes.status}`
         }
@@ -52,8 +62,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: `Hasil ${matchTitle || `Match ${matchId}`} berhasil disimpan.`,
+      message: `Hasil ${matchTitle || `Match ${matchId}`} berhasil disimpan ke Sheets!`,
       webhookStatus,
+      webhookDetails,
       savedAt: new Date().toISOString(),
     })
   } catch (err: unknown) {

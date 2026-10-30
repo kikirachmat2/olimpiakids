@@ -99,6 +99,8 @@ export default function WasitPage() {
     const savedWebhook = localStorage.getItem('olimpiakids_apps_script_url')
     if (savedWebhook) {
       setCustomWebhookUrl(savedWebhook)
+    } else {
+      setCustomWebhookUrl('https://script.google.com/macros/s/AKfycbzW7iHQryhHG5Qw7-m3Kx-OGZ1RcykxdzCeQJIRE3slHSm-dirgVWSj5P_7WZQRJT0QCA/exec')
     }
 
     return () => {
