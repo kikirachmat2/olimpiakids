@@ -63,113 +63,96 @@ function WasitReorderCard({
       dragListener={false}
       dragControls={dragControls}
       whileDrag={{
-        scale: 1.03,
+        scale: 1.02,
         boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(251 191 36 / 0.35)',
         zIndex: 50,
       }}
-      className={`p-3 rounded-2xl border transition-colors flex flex-col gap-2 ${
+      className={`px-2.5 py-2.5 rounded-2xl border transition-colors flex items-center justify-between gap-2 ${
         isDnf
-          ? 'bg-red-950/30 border-red-500/50'
+          ? 'bg-red-950/35 border-red-500/60'
           : position === 1
-          ? 'bg-slate-900 border-amber-400/60 shadow-sm'
+          ? 'bg-slate-900 border-amber-400/70 shadow-sm'
           : 'bg-slate-900/80 border-slate-800'
       }`}
     >
-      <div className="flex items-center justify-between gap-2.5">
-        {/* Grip Handle + Rank Badge + Info */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div
-            onPointerDown={(e) => {
-              if (!isFinal) {
-                e.preventDefault()
-                dragControls.start(e)
-              }
-            }}
-            style={{ touchAction: 'none' }}
-            className={`p-2 -ml-1.5 rounded-xl border transition-colors shrink-0 select-none ${
-              isFinal
-                ? 'text-slate-700 border-transparent cursor-not-allowed'
-                : 'text-amber-400 bg-slate-800/90 border-slate-700 hover:bg-slate-700 active:bg-amber-400 active:text-slate-950 cursor-grab active:cursor-grabbing'
-            }`}
-            title="Tahan & geser ikon grip ini untuk mengubah urutan"
-          >
-            <GripVertical className="w-5 h-5" />
-          </div>
-
-          <div
-            className={`w-8 h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
-              isDnf
-                ? 'bg-red-600 text-white'
-                : position === 1
-                ? 'bg-yellow-400 text-slate-950'
-                : position === 2
-                ? 'bg-slate-200 text-slate-950'
-                : position === 3
-                ? 'bg-amber-600 text-white'
-                : 'bg-slate-800 text-slate-300 border border-slate-700'
-            }`}
-          >
-            {isDnf ? 'DNF' : `#${position}`}
-          </div>
-
-          {/* Nomor Dada Raksasa + Nama */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <span
-                className={`font-mono font-black text-2xl sm:text-3xl leading-none ${
-                  isDnf ? 'text-red-300' : 'text-amber-300'
-                }`}
-              >
-                {p.bib_number}
-              </span>
-              <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase">
-                {p.name}
-              </span>
-            </div>
-          </div>
+      {/* Left: Grip Handle + Rank Badge + Bib & Name */}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div
+          onPointerDown={(e) => {
+            if (!isFinal) {
+              e.preventDefault()
+              dragControls.start(e)
+            }
+          }}
+          style={{ touchAction: 'none' }}
+          className={`p-2 rounded-xl border transition-colors shrink-0 select-none ${
+            isFinal
+              ? 'text-slate-700 border-transparent cursor-not-allowed'
+              : 'text-amber-400 bg-slate-800/90 border-slate-700 hover:bg-slate-700 active:bg-amber-400 active:text-slate-950 cursor-grab active:cursor-grabbing'
+          }`}
+          title="Tahan & geser untuk mengubah urutan"
+        >
+          <GripVertical className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
 
-        {/* Hanya tombol DNF */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => onToggleDnf(p.bib_number)}
-            disabled={isFinal}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
-              isDnf
-                ? 'bg-red-600 text-white border-red-400'
-                : 'bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-700'
-            }`}
-            title={isDnf ? 'Batal DNF' : 'Tandai DNF (Mogok)'}
-          >
-            DNF
-          </button>
+        <div
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
+            isDnf
+              ? 'bg-red-600 text-white'
+              : position === 1
+              ? 'bg-yellow-400 text-slate-950'
+              : position === 2
+              ? 'bg-slate-200 text-slate-950'
+              : position === 3
+              ? 'bg-amber-600 text-white'
+              : 'bg-slate-800 text-slate-300 border border-slate-700'
+          }`}
+        >
+          {isDnf ? 'DNF' : `#${position}`}
+        </div>
+
+        {/* Nomor Dada + Nama */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5 sm:gap-2">
+            <span
+              className={`font-mono font-black text-xl sm:text-2xl leading-none shrink-0 ${
+                isDnf ? 'text-red-300' : 'text-amber-300'
+              }`}
+            >
+              {p.bib_number}
+            </span>
+            <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase">
+              {p.name}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Manual Time Input Row (WASIT BISA EDIT & ISI WAKTU MANUAL) */}
-      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
-        <span className="text-slate-400 font-bold flex items-center gap-1">
-          <Clock className="w-3.5 h-3.5 text-amber-400" />
-          <span>Catatan Waktu:</span>
-        </span>
-
-        {isDnf ? (
-          <span className="font-mono font-black text-red-400 text-xs px-2 py-0.5 rounded bg-red-950/40 border border-red-800/40">
-            DNF (Mogok - Tanpa Waktu)
-          </span>
-        ) : (
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={currentTimerVal}
-              onChange={(e) => onManualTimeChange(p.bib_number, e.target.value)}
-              disabled={isFinal}
-              placeholder="00:00.00"
-              className="w-28 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-center font-mono font-black text-sm text-amber-300 tracking-wider focus:outline-none"
-            />
-            <span className="text-[10px] text-slate-500">MM:SS.CC</span>
-          </div>
+      {/* Right: Inline Time Input + DNF Button */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {!isDnf && (
+          <input
+            type="text"
+            value={currentTimerVal}
+            onChange={(e) => onManualTimeChange(p.bib_number, e.target.value)}
+            disabled={isFinal}
+            placeholder="00:00.00"
+            className="w-20 sm:w-24 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl px-1.5 py-1.5 text-center font-mono font-black text-xs sm:text-sm text-amber-300 tracking-wider focus:outline-none"
+          />
         )}
+
+        <button
+          onClick={() => onToggleDnf(p.bib_number)}
+          disabled={isFinal}
+          className={`px-2.5 py-1.5 rounded-xl text-xs font-black border transition-all ${
+            isDnf
+              ? 'bg-red-600 text-white border-red-400'
+              : 'bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-700'
+          }`}
+          title={isDnf ? 'Batal DNF' : 'Tandai DNF'}
+        >
+          DNF
+        </button>
       </div>
     </Reorder.Item>
   )
@@ -239,6 +222,8 @@ export default function WasitPage() {
     } catch {}
   }, [])
 
+  const reorderDebounceRef = useRef<NodeJS.Timeout | null>(null)
+
   const loadSessionFromDb = useCallback(async () => {
     try {
       const s = await getActiveSession()
@@ -260,17 +245,6 @@ export default function WasitPage() {
         if (s.participants && s.participants.length > 0) {
           setParticipants(s.participants)
         }
-        // Map splits to manualTimes
-        if (s.splits && s.splits.length > 0) {
-          const map: Record<string, string> = {}
-          const participantList = s.participants || []
-          participantList.forEach((p: WasitParticipant, i: number) => {
-            if (s.splits?.[i] && p.status !== 'dnf') {
-              map[p.bib_number] = s.splits[i].timer
-            }
-          })
-          setManualTimes(map)
-        }
       }
     } catch {}
   }, [matches])
@@ -282,13 +256,13 @@ export default function WasitPage() {
 
   // Sync participants whenever currentMatch changes
   useEffect(() => {
-    if (currentMatch && (!participants || participants.length === 0 || session.matchId !== currentMatch.id)) {
+    if (currentMatch && (!participants || participants.length === 0)) {
       setParticipants(currentMatch.participants || [])
     }
-  }, [currentMatchIdx, currentMatch, session.matchId, participants])
+  }, [currentMatchIdx, currentMatch, participants])
 
   // =========================================================================
-  // REALTIME WEBSOCKET SUBSCRIPTION
+  // REALTIME WEBSOCKET SUBSCRIPTION + BACKGROUND POLLING
   // =========================================================================
   useEffect(() => {
     const channel = getSyncChannel()
@@ -296,25 +270,41 @@ export default function WasitPage() {
     const handleSessionSync = ({ payload }: { payload: RealtimeSessionPayload }) => {
       if (!payload || payload.senderId === CLIENT_ID) return
       if (payload.session) {
-        setSession(payload.session)
-        if (payload.session.splits && payload.session.splits.length > 0) {
-          // Auto fill times from timer splits
-          setManualTimes((prev) => {
-            const next = { ...prev }
-            const activeFinisher = (payload.session.participants || []).filter((p) => p.status !== 'dnf')
-            payload.session.splits.forEach((sp, idx) => {
-              if (activeFinisher[idx] && !next[activeFinisher[idx].bib_number]) {
-                next[activeFinisher[idx].bib_number] = sp.timer
-              }
-            })
-            return next
-          })
-        }
+        setSession((prev) => ({
+          ...prev,
+          ...payload.session,
+          // Jangan timpa urutan participants yang sedang diatur wasit jika sinyal datang dari Timer
+          participants:
+            payload.action === 'START_TIMER' ||
+            payload.action === 'SPLIT_TIMER' ||
+            payload.action === 'RESET_TIMER'
+              ? prev.participants
+              : payload.session.participants || prev.participants,
+        }))
       }
     }
 
     channel.on('broadcast', { event: 'session-sync' }, handleSessionSync)
-  }, [])
+
+    // Backup polling tiap 1.5 detik saat match sedang UNLOCKED / RUNNING agar split dari Timer anti-lewat
+    const interval = setInterval(async () => {
+      try {
+        const s = await getActiveSession()
+        if (s && s.matchId === currentMatch?.id) {
+          setSession((prev) => ({
+            ...prev,
+            status: s.status,
+            splits: s.splits || [],
+            elapsedMs: s.elapsedMs || 0,
+            startTime: s.startTime,
+            matchStatuses: s.matchStatuses || prev.matchStatuses,
+          }))
+        }
+      } catch {}
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [currentMatch?.id])
 
   // =========================================================================
   // AUTH PIN SUBMIT
@@ -325,7 +315,7 @@ export default function WasitPage() {
       setIsAuthenticated(true)
       setIsSupervisor(false)
       setPinError('')
-      setViewMode('MATCH_LIST') // Sesuai aturan: awal login masuk ke list Match 1-12
+      setViewMode('MATCH_LIST')
     } else if (pinInput === '9999') {
       setIsAuthenticated(true)
       setIsSupervisor(true)
@@ -342,29 +332,30 @@ export default function WasitPage() {
   const selectMatch = (idx: number) => {
     const target = matches[idx]
     if (!target) return
-    setCurrentMatchIdx(idx)
-    setParticipants(target.participants || [])
-    setManualTimes({})
 
-    // Jika match ini belum aktif di session, set status LOCKED (pertahankan matchStatuses)
-    if (session.matchId !== target.id) {
-      const newSession: ActiveMatchSession = {
-        matchId: target.id,
-        matchTitle: target.title,
-        status: matchStatuses[target.id] === 'FINAL' ? 'LOCKED_FINAL' : 'LOCKED',
-        participants: target.participants || [],
-        splits: [],
-        elapsedMs: 0,
-        startTime: null,
-        dnfList: [],
-        matchStatuses,
-        updatedAt: new Date().toISOString(),
-      }
-      setSession(newSession)
-      saveActiveSession(newSession)
-      broadcastSessionEvent({ action: 'SESSION_SYNC', session: newSession })
+    // Cegah pindah match jika ada match lain yang sedang RUNNING
+    if (
+      session.matchId !== target.id &&
+      (session.status === 'RUNNING' || session.status === 'UNLOCKED')
+    ) {
+      showToast(
+        'error',
+        `Match ${session.matchId} masih terbuka/berjalan! Kunci balik atau selesaikan Match ${session.matchId} dulu.`
+      )
+      return
     }
 
+    setCurrentMatchIdx(idx)
+    setManualTimes({})
+
+    if (session.matchId === target.id && session.participants && session.participants.length > 0) {
+      setParticipants(session.participants)
+    } else {
+      setParticipants(target.participants || [])
+    }
+
+    // Catatan penting: JANGAN timpa session global di Supabase jika match sebelumnya LOCKED_FINAL,
+    // supaya layar Plasma tetap menampilkan hasil match sebelumnya sampai Wasit klik BUKA GEMBOK!
     setViewMode('MATCH_DETAIL')
   }
 
@@ -373,29 +364,42 @@ export default function WasitPage() {
   // =========================================================================
   const handleUnlockMatch = async () => {
     const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'UNLOCKED' as const }
+    const resetParticipants: WasitParticipant[] = (
+      participants.length > 0 ? participants : currentMatch.participants || []
+    ).map((p, i) => ({
+      ...p,
+      position: i + 1,
+      status: p.status === 'dnf' ? 'dnf' : 'registered',
+    }))
     const updated: ActiveMatchSession = {
       ...session,
       matchId: currentMatch.id,
       matchTitle: currentMatch.title,
       status: 'UNLOCKED',
-      participants: participants,
+      participants: resetParticipants,
       splits: [],
+      results: [],
       elapsedMs: 0,
       startTime: null,
+      dnfList: resetParticipants.filter((p) => p.status === 'dnf').map((p) => p.bib_number),
       matchStatuses: nextStatuses,
       updatedAt: new Date().toISOString(),
     }
+    setParticipants(resetParticipants)
+    setManualTimes({})
     setSession(updated)
     setMatchStatuses(nextStatuses)
     await saveActiveSession(updated)
     broadcastSessionEvent({ action: 'UNLOCK_MATCH', session: updated })
-    showToast('success', `🔓 Gembok ${currentMatch.title} berhasil DIBUKA! Meja Timer & Plasma kini aktif.`)
+    showToast('success', `🔓 Gembok ${currentMatch.title} dibuka! Timer & Plasma aktif.`)
   }
 
   const handleLockMatchBack = async () => {
     const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'LOCKED' as const }
     const updated: ActiveMatchSession = {
       ...session,
+      matchId: currentMatch.id,
+      matchTitle: currentMatch.title,
       status: 'LOCKED',
       matchStatuses: nextStatuses,
       updatedAt: new Date().toISOString(),
@@ -408,32 +412,34 @@ export default function WasitPage() {
   }
 
   // =========================================================================
-  // REORDER PARTICIPANTS (URUTAN WASIT)
+  // REORDER PARTICIPANTS (URUTAN WASIT - DEBOUNCED SYNC)
   // =========================================================================
   const handleReorder = (newOrder: WasitParticipant[]) => {
-    setParticipants(newOrder)
-    const updated: ActiveMatchSession = {
-      ...session,
-      participants: newOrder,
-      updatedAt: new Date().toISOString(),
-    }
-    setSession(updated)
-    saveActiveSession(updated)
-    broadcastSessionEvent({ action: 'REORDER_WASIT', session: updated })
-  }
+    // Pastikan yang DNF tetap berada di urutan paling bawah
+    const nonDnf = newOrder.filter((p) => p.status !== 'dnf')
+    const dnfOnly = newOrder.filter((p) => p.status === 'dnf')
+    const normalizedOrder = [...nonDnf, ...dnfOnly]
 
-  const moveItem = (index: number, direction: 'UP' | 'DOWN') => {
-    const targetIndex = direction === 'UP' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= participants.length) return
-    const cloned = [...participants]
-    const temp = cloned[index]
-    cloned[index] = cloned[targetIndex]
-    cloned[targetIndex] = temp
-    handleReorder(cloned)
+    setParticipants(normalizedOrder)
+
+    if (session.matchId === currentMatch.id) {
+      const updated: ActiveMatchSession = {
+        ...session,
+        participants: normalizedOrder,
+        updatedAt: new Date().toISOString(),
+      }
+      setSession(updated)
+
+      if (reorderDebounceRef.current) clearTimeout(reorderDebounceRef.current)
+      reorderDebounceRef.current = setTimeout(() => {
+        saveActiveSession(updated)
+        broadcastSessionEvent({ action: 'REORDER_WASIT', session: updated })
+      }, 120)
+    }
   }
 
   // =========================================================================
-  // TOGGLE DNF (MOGOK)
+  // TOGGLE DNF (MOGOK) - OTOMATIS HENTIKAN STOPWATCH JIKA SISA ANAK HABIS
   // =========================================================================
   const handleToggleDnf = (bib: string) => {
     const cloned = [...participants]
@@ -458,17 +464,38 @@ export default function WasitPage() {
     setParticipants(cloned)
 
     const dnfBibs = cloned.filter((p) => p.status === 'dnf').map((p) => p.bib_number)
-    const updated: ActiveMatchSession = {
-      ...session,
-      participants: cloned,
-      dnfList: dnfBibs,
-      updatedAt: new Date().toISOString(),
-    }
-    setSession(updated)
-    saveActiveSession(updated)
-    broadcastSessionEvent({ action: 'DNF_WASIT', session: updated })
+    const activeFinishersCount = cloned.filter((p) => p.status !== 'dnf').length
+    const currentSplits = session.matchId === currentMatch.id ? session.splits || [] : []
 
-    showToast(isCurrentDnf ? 'success' : 'error', `${bib} ${isCurrentDnf ? 'Batal DNF' : 'Ditandai DNF (Mogok)'}`)
+    // Jika stopwatch sedang RUNNING dan jumlah split sudah mencapai jumlah finisher non-DNF,
+    // otomatis hentikan stopwatch (TIMER_COMPLETED)!
+    let nextStatus = session.matchId === currentMatch.id ? session.status : 'LOCKED'
+    let nextElapsed = session.matchId === currentMatch.id ? session.elapsedMs : 0
+    if (
+      session.matchId === currentMatch.id &&
+      session.status === 'RUNNING' &&
+      activeFinishersCount > 0 &&
+      currentSplits.length >= activeFinishersCount
+    ) {
+      nextStatus = 'TIMER_COMPLETED'
+      nextElapsed = currentSplits[currentSplits.length - 1]?.elapsedMs || session.elapsedMs
+    }
+
+    if (session.matchId === currentMatch.id) {
+      const updated: ActiveMatchSession = {
+        ...session,
+        status: nextStatus,
+        elapsedMs: nextElapsed,
+        participants: cloned,
+        dnfList: dnfBibs,
+        updatedAt: new Date().toISOString(),
+      }
+      setSession(updated)
+      saveActiveSession(updated)
+      broadcastSessionEvent({ action: 'DNF_WASIT', session: updated })
+    }
+
+    showToast(isCurrentDnf ? 'success' : 'error', `${bib} ${isCurrentDnf ? 'Batal DNF' : 'Ditandai DNF'}`)
   }
 
   // =========================================================================
@@ -489,19 +516,33 @@ export default function WasitPage() {
     setIsSubmitting(true)
 
     try {
-      // Gabungkan urutan wasit + catatan waktu (dari timer atau edit manual wasit)
-      const nonDnfParticipants = participants.filter((p) => p.status !== 'dnf')
-      const mergedResults = participants.map((p, idx) => {
+      const activeSplits = session.matchId === currentMatch.id ? session.splits || [] : []
+      let finisherIdx = 0
+
+      // Gabungkan urutan wasit + catatan waktu (dari split urutan posisi atau edit manual wasit)
+      const mergedResults = participants.map((p) => {
         const isDnf = p.status === 'dnf'
-        const customTime = manualTimes[p.bib_number] || ''
-        const splitTime = session.splits?.[idx]?.timer || ''
-        const finalTimer = isDnf ? 'DNF' : (customTime || splitTime || '--.--.--')
+        if (isDnf) {
+          return {
+            position: 9999,
+            bib_number: p.bib_number,
+            name: p.name,
+            status: 'dnf',
+            timer: 'DNF',
+          }
+        }
+        const posNumber = finisherIdx + 1
+        const customTime =
+          manualTimes[p.bib_number] !== undefined ? manualTimes[p.bib_number].trim() : ''
+        const splitTime = activeSplits[finisherIdx]?.timer || ''
+        const finalTimer = customTime || splitTime || '--.--.--'
+        finisherIdx++
 
         return {
-          position: isDnf ? 9999 : idx + 1,
+          position: posNumber,
           bib_number: p.bib_number,
           name: p.name,
-          status: isDnf ? 'dnf' : 'finished',
+          status: 'finished',
           timer: finalTimer,
         }
       })
@@ -513,7 +554,7 @@ export default function WasitPage() {
           matchId: currentMatch.id,
           matchTitle: currentMatch.title,
           results: mergedResults,
-          splits: session.splits,
+          splits: activeSplits,
           refereePin: isSupervisor ? '9999' : '1234',
         }),
       })
@@ -523,10 +564,11 @@ export default function WasitPage() {
         throw new Error(json.error || 'Gagal mengunci hasil match')
       }
 
-      // Update state lokal & session
       const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'FINAL' as const }
       const lockedSession: ActiveMatchSession = {
         ...session,
+        matchId: currentMatch.id,
+        matchTitle: currentMatch.title,
         status: 'LOCKED_FINAL',
         participants: participants,
         results: mergedResults,
@@ -535,8 +577,8 @@ export default function WasitPage() {
           .map((r, i) => ({
             position: i + 1,
             timer: r.timer,
-            elapsedMs: session.splits[i]?.elapsedMs || 0,
-            manualEdited: !!manualTimes[r.bib_number],
+            elapsedMs: activeSplits[i]?.elapsedMs || 0,
+            manualEdited: manualTimes[r.bib_number] !== undefined,
           })),
         matchStatuses: nextStatuses,
         updatedAt: new Date().toISOString(),
@@ -546,7 +588,7 @@ export default function WasitPage() {
       setMatchStatuses(nextStatuses)
       broadcastSessionEvent({ action: 'LOCK_FINAL', session: lockedSession })
 
-      showToast('success', `🎉 ${currentMatch.title} BERHASIL DIKUNCI! Data menyatu di Plasma & Leaderboard.`)
+      showToast('success', `${currentMatch.title} berhasil dikunci & dikirim!`)
     } catch (err: unknown) {
       showToast('error', err instanceof Error ? err.message : 'Terjadi kegagalan saat mengunci hasil.')
     } finally {
@@ -569,16 +611,21 @@ export default function WasitPage() {
     }
 
     if (emergencyModal === 'UNLOCK') {
+      const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'UNLOCKED' as const }
       const unlockedSession: ActiveMatchSession = {
         ...session,
+        matchId: currentMatch.id,
+        matchTitle: currentMatch.title,
         status: 'UNLOCKED',
+        participants,
+        matchStatuses: nextStatuses,
         updatedAt: new Date().toISOString(),
       }
       setSession(unlockedSession)
-      setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'UNLOCKED' }))
+      setMatchStatuses(nextStatuses)
       await saveActiveSession(unlockedSession)
       broadcastSessionEvent({ action: 'UNLOCK_MATCH', session: unlockedSession })
-      showToast('success', `Gembok ${currentMatch.title} berhasil dibuka ulang untuk koreksi.`)
+      showToast('success', `Gembok ${currentMatch.title} dibuka ulang.`)
     } else if (emergencyModal === 'RESET_MATCH') {
       await fetch('/api/wasit/submit', {
         method: 'POST',
@@ -590,22 +637,23 @@ export default function WasitPage() {
           refereePin: '9999',
         }),
       })
+      const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'LOCKED' as const }
       const resetSession: ActiveMatchSession = {
         ...INITIAL_MATCH_SESSION,
         matchId: currentMatch.id,
         matchTitle: currentMatch.title,
         status: 'LOCKED',
         participants: currentMatch.participants || [],
+        matchStatuses: nextStatuses,
       }
       setSession(resetSession)
       setParticipants(currentMatch.participants || [])
       setManualTimes({})
-      setMatchStatuses((prev) => ({ ...prev, [currentMatch.id]: 'LOCKED' }))
+      setMatchStatuses(nextStatuses)
       await saveActiveSession(resetSession)
       broadcastSessionEvent({ action: 'SESSION_SYNC', session: resetSession })
-      showToast('success', `Match ${currentMatch.id} berhasil direset bersih ke status LOCKED.`)
+      showToast('success', `Match ${currentMatch.id} berhasil direset.`)
     } else if (emergencyModal === 'RESET_DB') {
-      // Panggil reset database Google Sheets & Supabase melalui API
       await fetch('/api/wasit/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -614,6 +662,22 @@ export default function WasitPage() {
           refereePin: '9999',
         }),
       }).catch(() => {})
+      const cleanSession: ActiveMatchSession = {
+        ...INITIAL_MATCH_SESSION,
+        matchId: 1,
+        matchTitle: matches[0]?.title || 'MATCH 1 (051 B - 057 B)',
+        status: 'LOCKED',
+        participants: matches[0]?.participants || [],
+        matchStatuses: {},
+        updatedAt: new Date().toISOString(),
+      }
+      setCurrentMatchIdx(0)
+      setParticipants(matches[0]?.participants || [])
+      setManualTimes({})
+      setMatchStatuses({})
+      setSession(cleanSession)
+      await saveActiveSession(cleanSession)
+      broadcastSessionEvent({ action: 'SESSION_SYNC', session: cleanSession })
       showToast('success', 'Seluruh database berhasil direset bersih!')
     }
 
@@ -1090,10 +1154,16 @@ export default function WasitPage() {
   // =========================================================================
   // VIEW 2: MATCH DETAIL VIEW (GEMBOK, ATUR URUTAN, MANUAL EDIT, & KUNCI)
   // =========================================================================
-  const statusUpper = (session.status || 'LOCKED').toUpperCase()
+  const isCurrentSessionMatch = session.matchId === currentMatch.id
+  const statusUpper = isCurrentSessionMatch
+    ? (session.status || 'LOCKED').toUpperCase()
+    : matchStatuses[currentMatch.id] === 'FINAL'
+    ? 'LOCKED_FINAL'
+    : 'LOCKED'
   const isLocked = statusUpper === 'LOCKED'
   const isFinal = statusUpper === 'LOCKED_FINAL'
-  const isUnlockedOrActive = statusUpper === 'UNLOCKED' || statusUpper === 'RUNNING' || statusUpper === 'TIMER_COMPLETED'
+  const isUnlockedOrActive =
+    statusUpper === 'UNLOCKED' || statusUpper === 'RUNNING' || statusUpper === 'TIMER_COMPLETED'
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans pb-16">
@@ -1113,7 +1183,7 @@ export default function WasitPage() {
               {currentMatch.title}
             </h1>
             <span className="text-[10px] text-amber-400 font-bold">
-              {participants.length} Peserta (Maks 10)
+              {participants.length} / 10 Peserta
             </span>
           </div>
 
@@ -1121,7 +1191,7 @@ export default function WasitPage() {
             onClick={() => openMoveModal(participants[0])}
             disabled={participants.length === 0}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl border border-slate-700"
-            title="Atur Peserta Match Ini"
+            title="Pindah Peserta"
           >
             <Users className="w-4 h-4" />
           </button>
@@ -1132,7 +1202,7 @@ export default function WasitPage() {
       <main className="flex-1 max-w-xl w-full mx-auto p-3 sm:p-4 space-y-3">
         {/* GEMBOK BANNER (MASTER CONTROL WASIT) */}
         <div
-          className={`p-3.5 sm:p-4 rounded-2xl border transition-all ${
+          className={`p-3 sm:p-3.5 rounded-2xl border transition-all ${
             isLocked
               ? 'bg-slate-900/95 border-amber-500/60 shadow-lg'
               : isFinal
@@ -1141,28 +1211,32 @@ export default function WasitPage() {
           }`}
         >
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${
                   isLocked ? 'bg-amber-400 text-slate-950' : isFinal ? 'bg-amber-400 text-slate-950' : 'bg-emerald-400 text-slate-950'
                 }`}
               >
-                {isLocked ? <Lock className="w-5 h-5" /> : isFinal ? '👑' : <Unlock className="w-5 h-5" />}
+                {isLocked ? <Lock className="w-4 h-4" /> : isFinal ? '👑' : <Unlock className="w-4 h-4" />}
               </div>
               <div>
                 <div className="font-display font-black text-xs sm:text-sm text-white uppercase tracking-wider">
                   {isLocked
-                    ? 'STATUS: TERGEMBOK (STANDBY)'
+                    ? 'TERGEMBOK'
                     : isFinal
-                    ? 'STATUS: HASIL TERKUNCI & TERKIRIM'
-                    : 'STATUS: GEMBOK TERBUKA (AKTIF)'}
+                    ? 'HASIL TERKUNCI'
+                    : statusUpper === 'RUNNING'
+                    ? 'STOPWATCH BERJALAN'
+                    : statusUpper === 'TIMER_COMPLETED'
+                    ? 'STOPWATCH SELESAI'
+                    : 'GEMBOK TERBUKA'}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">
+                <div className="text-[11px] text-slate-400">
                   {isLocked
-                    ? 'Timer & Plasma terkunci. Buka gembok untuk memulai match.'
+                    ? 'Buka gembok untuk mengaktifkan Timer & Plasma'
                     : isFinal
-                    ? 'Hasil urutan & timer menyatu di Plasma & Sheets.'
-                    : 'Timer aktif dan siap START saat pluit ditiup.'}
+                    ? 'Tersimpan di Plasma & Leaderboard'
+                    : 'Timer & Plasma aktif'}
                 </div>
               </div>
             </div>
@@ -1200,12 +1274,12 @@ export default function WasitPage() {
         {/* LIST PESERTA & URUTAN POSISI */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
-              URUTAN POSISI ARENA:
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+              URUTAN POSISI
             </span>
             <span className="text-[11px] font-bold text-amber-400/90 flex items-center gap-1">
               <GripVertical className="w-3.5 h-3.5" />
-              <span>Tahan & Geser (Drag & Drop)</span>
+              <span>Geser Grip</span>
             </span>
           </div>
 
@@ -1213,22 +1287,32 @@ export default function WasitPage() {
             axis="y"
             values={participants}
             onReorder={handleReorder}
-            className="space-y-2"
+            className="space-y-1.5"
           >
-            {participants.map((p, idx) => {
-              const currentTimerVal = manualTimes[p.bib_number] || (session.splits?.[idx]?.timer || '')
-              return (
-                <WasitReorderCard
-                  key={p.bib_number}
-                  participant={p}
-                  index={idx}
-                  isFinal={isFinal}
-                  currentTimerVal={currentTimerVal}
-                  onToggleDnf={handleToggleDnf}
-                  onManualTimeChange={handleManualTimeChange}
-                />
-              )
-            })}
+            {(() => {
+              let finisherCounter = 0
+              return participants.map((p, idx) => {
+                const isDnf = p.status === 'dnf'
+                const finisherIdx = isDnf ? -1 : finisherCounter++
+                const currentTimerVal =
+                  manualTimes[p.bib_number] !== undefined
+                    ? manualTimes[p.bib_number]
+                    : !isDnf && isCurrentSessionMatch
+                    ? session.splits?.[finisherIdx]?.timer || ''
+                    : ''
+                return (
+                  <WasitReorderCard
+                    key={p.bib_number}
+                    participant={p}
+                    index={idx}
+                    isFinal={isFinal}
+                    currentTimerVal={currentTimerVal}
+                    onToggleDnf={handleToggleDnf}
+                    onManualTimeChange={handleManualTimeChange}
+                  />
+                )
+              })
+            })()}
           </Reorder.Group>
         </div>
       </main>

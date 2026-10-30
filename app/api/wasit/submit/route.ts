@@ -4,9 +4,11 @@ import {
   saveActiveSession,
   getActiveSession,
   ActiveMatchSession,
+  INITIAL_MATCH_SESSION,
   getGlobalDnfBibs,
   saveGlobalDnfBibs,
 } from '@/lib/sessionStore'
+import { DEFAULT_MATCHES } from '@/lib/wasitDefaults'
 
 const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzW7iHQryhHG5Qw7-m3Kx-OGZ1RcykxdzCeQJIRE3slHSm-dirgVWSj5P_7WZQRJT0QCA/exec'
 
@@ -157,20 +159,52 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: 'Butuh PIN Supervisor 9999.' }, { status: 403 })
       }
       if (scriptWebhookUrl) {
-        await fetch(scriptWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'RESET_DATABASE' }),
-        }).catch(() => {})
+        try {
+          // 1. Kosongkan terlebih dahulu kolom VALID di tab WASIT untuk semua 98 peserta
+          const allBibs = DEFAULT_MATCHES.flatMap((m) =>
+            m.participants.map((p) => ({
+              bib_number: p.bib_number,
+              name: p.name,
+              position: '',
+              status: 'registered',
+            }))
+          )
+          await fetch(scriptWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'SUBMIT_URUTAN',
+              matchId: 1,
+              results: allBibs,
+            }),
+          }).catch(() => {})
+
+          // 2. Jalankan RESET_DATABASE untuk mengosongkan tab TIMER dan MASTER DATABASE
+          await fetch(scriptWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'RESET_DATABASE' }),
+          }).catch(() => {})
+        } catch {}
       }
-      // Bersihkan daftar DNF global
+      // Bersihkan daftar DNF global & kembalikan session ke Match 1 LOCKED
       await saveGlobalDnfBibs([])
-      // Reset juga race_results di Supabase agar Leaderboard kembali bersih
+      const cleanInitial: ActiveMatchSession = {
+        ...INITIAL_MATCH_SESSION,
+        matchStatuses: {},
+        updatedAt: new Date().toISOString(),
+      }
+      await saveActiveSession(cleanInitial)
+      // Reset juga race_results di Supabase agar Leaderboard kembali bersih (tanpa menyentuh finish_time timestamptz dengan string kosong)
       await supabase
         .from('race_results')
-        .update({ duration_ms: null, finish_time: '', status: 'finished' })
+        .update({ duration_ms: null, status: 'finished' })
         .eq('race_event_id', 2)
-      return NextResponse.json({ ok: true, message: 'Seluruh database berhasil direset bersih!' })
+      return NextResponse.json({
+        ok: true,
+        message: 'Seluruh database berhasil direset bersih!',
+        session: cleanInitial,
+      })
     }
 
     if (!matchId || !results || !Array.isArray(results)) {
@@ -206,12 +240,58 @@ export async function POST(request: Request) {
 
       const bibs = results.map((r: any) => String(r.bib_number || '').trim().toUpperCase()).filter(Boolean)
       if (bibs.length > 0) {
-        // Hapus bib match ini dari Global DNF Store
+        // 1. Hapus bib match ini dari Global DNF Store
         const currentGlobalDnf = await getGlobalDnfBibs()
         const filteredDnf = currentGlobalDnf.filter((b) => !bibs.includes(b.toUpperCase()))
         await saveGlobalDnfBibs(filteredDnf)
 
-        // Kosongkan catatan waktu anak-anak di match ini pada Supabase race_results
+        // 2. Bersihkan waktu match ini di Google Sheets (TIMER & MASTER DATABASE)
+        if (scriptWebhookUrl) {
+          try {
+            await fetch(scriptWebhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'SUBMIT_URUTAN',
+                matchId,
+                results: results.map((r: any, idx: number) => ({
+                  bib_number: r.bib_number,
+                  name: r.name,
+                  position: idx + 1,
+                  status: 'finished',
+                })),
+              }),
+            })
+            await fetch(scriptWebhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'SUBMIT_TIMER',
+                matchId,
+                splits: Array.from({ length: Math.max(results.length, 10) }).map((_, idx) => ({
+                  position: idx + 1,
+                  timer: '=IF(1=1,"","")',
+                })),
+              }),
+            })
+            await fetch(scriptWebhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'SUBMIT_URUTAN',
+                matchId,
+                results: results.map((r: any) => ({
+                  bib_number: r.bib_number,
+                  name: r.name,
+                  position: '',
+                  status: 'registered',
+                })),
+              }),
+            })
+          } catch {}
+        }
+
+        // 3. Kosongkan catatan waktu anak-anak di match ini pada Supabase race_results
         const { data: partRows } = await supabase
           .from('participants')
           .select('id')
@@ -220,13 +300,17 @@ export async function POST(request: Request) {
           const pIds = partRows.map((p) => p.id)
           await supabase
             .from('race_results')
-            .update({ duration_ms: null, finish_time: '', status: 'finished' })
+            .update({ duration_ms: null, status: 'finished' })
             .eq('race_event_id', 2)
             .in('participant_id', pIds)
         }
       }
 
-      return NextResponse.json({ ok: true, message: `Match ${matchId} berhasil direset ke status LOCKED.` })
+      return NextResponse.json({
+        ok: true,
+        message: `Match ${matchId} berhasil direset ke status LOCKED.`,
+        session: resetSession,
+      })
     }
 
     // C. KUNCI HASIL MATCH (FINAL LOCK)

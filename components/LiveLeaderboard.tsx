@@ -187,77 +187,99 @@ export default function LiveLeaderboard() {
     }
   }, [])
 
-  // 1. Fetch data dari Supabase
+  // 1. Fetch data dari LIVE VISUAL Sheet (via /api/leaderboard/live) + fallback Supabase
   const loadLeaderboardData = useCallback(async () => {
     try {
-      const raceRes = await getActiveRace()
-      if (raceRes.error) {
-        setIsLoading(false)
-        return
-      }
+      let nextData: LeaderboardItem[] | null = null
 
-      if (raceRes.data) {
-        setActiveRace(raceRes.data)
-        const boardRes = await getLeaderboard(raceRes.data.id)
-        if (!boardRes.error && boardRes.data) {
-          const nextData = boardRes.data
-
-          // A. Initial load: langsung terapkan tanpa jeda
-          if (previousRanksRef.current.size === 0) {
-            applyLeaderboardUpdate(nextData)
-            return
-          }
-
-          // B. Deteksi perubahan signifikan dibandingkan state yang sedang dipending atau yang sedang tampil
-          const baselineBoard = pendingDataRef.current || leaderboardRef.current
-          let hasSignificantChange = false
-          for (const item of nextData) {
-            const cur = baselineBoard.find((c) => c.bib_number === item.bib_number)
-            const hadTime = cur && cur.duration_ms !== null && cur.duration_ms !== undefined
-            const hasTime = item.duration_ms !== null && item.duration_ms !== undefined
-            if ((!hadTime && hasTime) || (hadTime && hasTime && cur.duration_ms !== item.duration_ms)) {
-              hasSignificantChange = true
-              break
-            }
-            if (cur && cur.finish_time !== item.finish_time) {
-              hasSignificantChange = true
-              break
-            }
-          }
-
-          if (hasSignificantChange) {
-            pendingDataRef.current = nextData
-
-            // Mulai countdown 10 detik jika belum berjalan
-            if (!countdownIntervalRef.current) {
-              setSuspenseCountdown(10)
-              let count = 10
-              countdownIntervalRef.current = setInterval(() => {
-                count--
-                if (count > 0) {
-                  setSuspenseCountdown(count)
-                } else {
-                  if (countdownIntervalRef.current) {
-                    clearInterval(countdownIntervalRef.current)
-                    countdownIntervalRef.current = null
-                  }
-                  setSuspenseCountdown(null)
-                  if (pendingDataRef.current) {
-                    applyLeaderboardUpdate(pendingDataRef.current)
-                    pendingDataRef.current = null
-                  }
-                }
-              }, 1000)
-            }
-          } else if (!countdownIntervalRef.current) {
-            // Jika tidak ada perubahan waktu tanding dan tidak sedang suspense, sinkronkan minor
-            setLeaderboard(nextData)
-            leaderboardRef.current = nextData
+      // Prioritas 1: Baca langsung dari LIVE VISUAL Google Sheets + Active Session Overlay
+      try {
+        const liveRes = await fetch('/api/leaderboard/live', { cache: 'no-store' })
+        if (liveRes.ok) {
+          const liveJson = await liveRes.json()
+          if (liveJson?.ok && Array.isArray(liveJson.leaderboard) && liveJson.leaderboard.length > 0) {
+            nextData = liveJson.leaderboard
           }
         }
-      } else {
-        setActiveRace(null)
-        setLeaderboard([])
+      } catch {}
+
+      // Prioritas 2: Fallback ke Supabase jika endpoint live sheet gagal
+      const raceRes = await getActiveRace()
+      if (!raceRes.error && raceRes.data) {
+        setActiveRace(raceRes.data)
+        if (!nextData) {
+          const boardRes = await getLeaderboard(raceRes.data.id)
+          if (!boardRes.error && boardRes.data) {
+            nextData = boardRes.data
+          }
+        }
+      }
+
+      if (nextData) {
+        // A. Initial load: langsung terapkan tanpa jeda
+        if (previousRanksRef.current.size === 0) {
+          applyLeaderboardUpdate(nextData)
+          return
+        }
+
+        // B. Deteksi perubahan signifikan dibandingkan state yang sedang dipending atau yang sedang tampil
+        const baselineBoard = pendingDataRef.current || leaderboardRef.current
+        let hasNewResultOrEdit = false
+        let hasReset = false
+
+        for (const item of nextData) {
+          const cur = baselineBoard.find((c) => c.bib_number === item.bib_number)
+          const hadTime = cur && cur.duration_ms !== null && cur.duration_ms !== undefined
+          const hasTime = item.duration_ms !== null && item.duration_ms !== undefined
+          const wasDnf = cur && (cur.status === 'disqualified' || cur.finish_time === 'DNF')
+          const isDnf = item.status === 'disqualified' || item.finish_time === 'DNF'
+
+          if ((!hadTime && hasTime) || (hadTime && hasTime && cur.duration_ms !== item.duration_ms) || (!wasDnf && isDnf)) {
+            hasNewResultOrEdit = true
+          } else if ((hadTime && !hasTime && !isDnf) || (wasDnf && !isDnf && !hasTime)) {
+            hasReset = true
+          }
+        }
+
+        if (hasNewResultOrEdit) {
+          pendingDataRef.current = nextData
+
+          // Mulai countdown 10 detik jika belum berjalan
+          if (!countdownIntervalRef.current) {
+            setSuspenseCountdown(10)
+            let count = 10
+            countdownIntervalRef.current = setInterval(() => {
+              count--
+              if (count > 0) {
+                setSuspenseCountdown(count)
+              } else {
+                if (countdownIntervalRef.current) {
+                  clearInterval(countdownIntervalRef.current)
+                  countdownIntervalRef.current = null
+                }
+                setSuspenseCountdown(null)
+                if (pendingDataRef.current) {
+                  applyLeaderboardUpdate(pendingDataRef.current)
+                  pendingDataRef.current = null
+                }
+              }
+            }, 1000)
+          }
+        } else if (hasReset) {
+          // Jika terjadi reset match / reset database, terapkan langsung tanpa tunggu 10 detik
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current)
+            countdownIntervalRef.current = null
+          }
+          setSuspenseCountdown(null)
+          pendingDataRef.current = null
+          setLeaderboard(nextData)
+          leaderboardRef.current = nextData
+        } else if (!countdownIntervalRef.current) {
+          // Jika tidak ada perubahan waktu tanding dan tidak sedang suspense, sinkronkan minor
+          setLeaderboard(nextData)
+          leaderboardRef.current = nextData
+        }
       }
     } catch {
       // Abaikan error jaringan sesaat, polling berikutnya akan mencoba lagi

@@ -112,7 +112,7 @@ export default function TimerPage() {
   }, [session.status, session.startTime, session.elapsedMs])
 
   // =========================================================================
-  // REALTIME WEBSOCKET SUBSCRIPTION
+  // REALTIME WEBSOCKET SUBSCRIPTION + BACKGROUND HEARTBEAT
   // =========================================================================
   useEffect(() => {
     const channel = getSyncChannel()
@@ -120,20 +120,86 @@ export default function TimerPage() {
     const handleSessionSync = ({ payload }: { payload: RealtimeSessionPayload }) => {
       if (!payload || payload.senderId === CLIENT_ID) return
       if (payload.session) {
-        setSession(payload.session)
-        if (payload.session.status === 'RUNNING' && payload.session.startTime) {
-          startTimeRef.current = payload.session.startTime
-        } else if (payload.session.status === 'UNLOCKED') {
+        const incoming = payload.session
+
+        // Jika Wasit hanya menggeser urutan atau DNF saat timer RUNNING,
+        // jangan timpa splits lokal milik Timer yang sedang berjalan!
+        if (payload.action === 'REORDER_WASIT' || payload.action === 'DNF_WASIT') {
+          setSession((prev) => {
+            const nextParticipants = incoming.participants || prev.participants
+            const nextDnfList = incoming.dnfList || prev.dnfList
+            const activeFinishersCount = nextParticipants.filter(
+              (p) => !nextDnfList.includes(p.bib_number) && p.status !== 'dnf'
+            ).length
+            const shouldComplete =
+              prev.status === 'RUNNING' &&
+              prev.splits.length > 0 &&
+              prev.splits.length >= Math.max(1, activeFinishersCount)
+
+            if (shouldComplete) {
+              startTimeRef.current = null
+            }
+
+            return {
+              ...prev,
+              participants: nextParticipants,
+              dnfList: nextDnfList,
+              status: shouldComplete
+                ? 'TIMER_COMPLETED'
+                : incoming.status === 'TIMER_COMPLETED'
+                ? 'TIMER_COMPLETED'
+                : prev.status,
+            }
+          })
+          return
+        }
+
+        setSession(incoming)
+        if (incoming.status === 'RUNNING' && incoming.startTime) {
+          startTimeRef.current = incoming.startTime
+        } else if (incoming.status === 'UNLOCKED') {
           startTimeRef.current = null
           setElapsedMs(0)
-        } else if (payload.session.status === 'LOCKED') {
+        } else if (incoming.status === 'LOCKED' || incoming.status === 'LOCKED_FINAL') {
           startTimeRef.current = null
-          setElapsedMs(0)
+          setElapsedMs(incoming.elapsedMs || 0)
         }
       }
     }
 
     channel.on('broadcast', { event: 'session-sync' }, handleSessionSync)
+
+    // Backup polling ringan setiap 1.5 detik (anti-putus sinyal)
+    const interval = setInterval(async () => {
+      try {
+        const remote = await getActiveSession()
+        if (!remote) return
+        setSession((prev) => {
+          // Jangan timpa splits lokal jika Timer sedang aktif mencatat split
+          if (
+            prev.status === 'RUNNING' &&
+            remote.status === 'RUNNING' &&
+            prev.matchId === remote.matchId &&
+            prev.splits.length >= (remote.splits?.length || 0)
+          ) {
+            return {
+              ...prev,
+              participants: remote.participants || prev.participants,
+              dnfList: remote.dnfList || prev.dnfList,
+            }
+          }
+          if (remote.status === 'RUNNING' && remote.startTime) {
+            startTimeRef.current = remote.startTime
+          } else if (remote.status === 'UNLOCKED') {
+            startTimeRef.current = null
+            setElapsedMs(0)
+          }
+          return remote
+        })
+      } catch {}
+    }, 1500)
+
+    return () => clearInterval(interval)
   }, [])
 
   // =========================================================================
@@ -300,17 +366,12 @@ export default function TimerPage() {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans p-4">
         {/* Header Minimal */}
-        <header className="max-w-md w-full mx-auto flex items-center justify-between pb-4 border-b border-slate-800">
+        <header className="max-w-md w-full mx-auto flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">⏱️</span>
-            <div>
-              <h1 className="font-display font-black text-base text-white uppercase tracking-wider">
-                MEJA TIMEKEEPER
-              </h1>
-              <span className="text-[10px] text-amber-400 font-bold">
-                STOPWATCH SLAVE MODE
-              </span>
-            </div>
+            <h1 className="font-display font-black text-base text-white uppercase tracking-wider">
+              MEJA TIMER
+            </h1>
           </div>
           <button
             onClick={() => setIsAuthenticated(false)}
@@ -326,9 +387,9 @@ export default function TimerPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 sm:p-8 text-center shadow-2xl space-y-4"
+            className="bg-slate-900 border-2 border-slate-800 rounded-3xl p-7 text-center shadow-2xl space-y-4"
           >
-            <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-300 flex items-center justify-center mx-auto text-2xl animate-pulse">
+            <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-300 flex items-center justify-center mx-auto text-2xl">
               <Lock className="w-8 h-8" />
             </div>
 
@@ -337,25 +398,17 @@ export default function TimerPage() {
                 {session.matchTitle || 'MATCH 1'}
               </span>
               <h2 className="font-display font-black text-xl sm:text-2xl text-white tracking-wide uppercase mt-3">
-                {isMatchFinal ? 'MATCH TELAH SELESAI' : 'MEJA TIMER TERKUNCI'}
+                {isMatchFinal ? 'MATCH SELESAI' : 'TIMER TERKUNCI'}
               </h2>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                {isMatchFinal
-                  ? 'Hasil match ini telah dikunci oleh Wasit. Menunggu Wasit memilih dan membuka gembok Match berikutnya.'
-                  : 'Timer tidak dapat digunakan sebelum Wasit Master memilih match dan membuka gemboknya.'}
-              </p>
             </div>
 
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-500 font-bold">
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-400 font-bold">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              <span>Menunggu Sinyal Buka Gembok Wasit...</span>
+              <span>Menunggu Wasit membuka gembok</span>
             </div>
           </motion.div>
         </main>
-
-        <footer className="text-center text-[11px] text-slate-600 pb-2">
-          Sistem Olimpiakids • Dual-Sync Realtime Active
-        </footer>
+        <div />
       </div>
     )
   }
@@ -384,7 +437,7 @@ export default function TimerPage() {
               {session.matchTitle}
             </h1>
             <span className="text-[10px] text-emerald-400 font-bold">
-              GEMBOK TERBUKA • SIAP TANDING
+              SIAP TANDING
             </span>
           </div>
         </div>
@@ -407,10 +460,10 @@ export default function TimerPage() {
             {isRunning && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
             <span>
               {isRunning
-                ? 'STOPWATCH BERJALAN'
+                ? 'BERJALAN'
                 : isCompleted
-                ? 'STOPWATCH BERHENTI (SELESAI)'
-                : 'SIAP MULAI (STANDBY)'}
+                ? 'SELESAI'
+                : 'STANDBY'}
             </span>
           </div>
 
@@ -419,7 +472,7 @@ export default function TimerPage() {
           </div>
 
           <div className="text-xs font-bold text-slate-400">
-            {session.splits.length} / {targetCount} Anak Selesai Merangkak
+            {session.splits.length} / {targetCount} Finish
           </div>
         </div>
 
@@ -431,7 +484,7 @@ export default function TimerPage() {
               className="w-full py-5 bg-gradient-to-r from-emerald-500 to-green-400 hover:from-emerald-400 hover:to-green-300 active:scale-95 text-slate-950 font-display font-black text-xl rounded-2xl shadow-[0_6px_0_rgba(5,150,105,1)] flex items-center justify-center gap-2.5 transition-all"
             >
               <Play className="w-6 h-6 fill-current" />
-              <span>START (PLUIT DIBUNYIKAN)</span>
+              <span>START</span>
             </button>
           )}
 
@@ -440,20 +493,17 @@ export default function TimerPage() {
               onClick={handleSplit}
               className="w-full py-6 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 hover:from-amber-300 hover:to-yellow-200 active:scale-95 text-slate-950 font-display font-black text-2xl rounded-2xl shadow-[0_6px_0_rgba(180,83,9,1)] flex items-center justify-center gap-3 transition-all"
             >
-              <Zap className="w-7 h-7 fill-current text-slate-950 animate-bounce" />
-              <span>CATAT SPLIT #{(session.splits || []).length + 1}</span>
+              <Zap className="w-7 h-7 fill-current text-slate-950" />
+              <span>SPLIT #{(session.splits || []).length + 1}</span>
             </button>
           )}
 
           {isCompleted && (
-            <div className="p-4 bg-emerald-950/40 border-2 border-emerald-500/60 rounded-2xl text-center space-y-1">
-              <div className="font-display font-black text-base text-emerald-400 uppercase flex items-center justify-center gap-1.5">
+            <div className="p-3.5 bg-emerald-950/40 border-2 border-emerald-500/60 rounded-2xl text-center">
+              <div className="font-display font-black text-sm text-emerald-400 uppercase flex items-center justify-center gap-1.5">
                 <CheckCircle2 className="w-5 h-5" />
-                <span>SEMUA ANAK FINISH! STOPWATCH BERHENTI</span>
+                <span>STOPWATCH SELESAI • MENUNGGU WASIT</span>
               </div>
-              <p className="text-xs text-slate-300">
-                Waktu telah terhubung ke Wasit. Menunggu Wasit Mengunci Hasil.
-              </p>
             </div>
           )}
         </div>
@@ -461,14 +511,14 @@ export default function TimerPage() {
         {/* LIST SPLIT TERCATAT */}
         <div className="flex-1 bg-slate-900/80 border border-slate-800 rounded-2xl p-3 flex flex-col min-h-0 overflow-hidden">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs font-black uppercase tracking-wider text-slate-400 shrink-0">
-            <span>DAFTAR SPLIT WAKTU:</span>
-            <span>{session.splits.length} Tercatat</span>
+            <span>SPLIT WAKTU</span>
+            <span>{session.splits.length} / {targetCount}</span>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-1.5 pt-2 pr-1 custom-scrollbar">
             {session.splits.length === 0 ? (
               <div className="py-6 text-center text-xs text-slate-500 font-bold">
-                Belum ada split. Tekan tombol SPLIT saat bayi menyentuh garis finish.
+                Belum ada catatan waktu
               </div>
             ) : (
               session.splits.map((s) => (
@@ -480,7 +530,7 @@ export default function TimerPage() {
                     <span className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-300 text-xs font-black flex items-center justify-center border border-amber-400/30">
                       #{s.position}
                     </span>
-                    <span className="text-xs font-bold text-slate-300">Finisher {s.position}</span>
+                    <span className="text-xs font-bold text-slate-300">Posisi {s.position}</span>
                   </div>
                   <span className="text-sm font-black text-emerald-400 tracking-wider">
                     {s.timer}

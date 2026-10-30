@@ -400,19 +400,14 @@ export default function PlasmaDisplayPage() {
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 shrink-0">
                 <div className="flex items-center gap-2.5">
                   <span className="text-2xl sm:text-3xl">🏅</span>
-                  <div>
-                    <h2 className="font-display font-black text-sm sm:text-base md:text-lg lg:text-xl text-white uppercase tracking-wider">
-                      KLASEMEN RESMI PERTANDINGAN
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-amber-300 font-bold">
-                      Data Terverifikasi Wasit Master & Waktu Resmi Pencatat
-                    </p>
-                  </div>
+                  <h2 className="font-display font-black text-sm sm:text-base md:text-lg lg:text-xl text-white uppercase tracking-wider">
+                    HASIL RESMI PERTANDINGAN
+                  </h2>
                 </div>
 
                 <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs sm:text-sm font-black uppercase tracking-wider">
-                  <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
-                  <span>HASIL SAH ARENA</span>
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>SAH</span>
                 </div>
               </div>
 
@@ -472,7 +467,7 @@ export default function PlasmaDisplayPage() {
                       initial={{ opacity: 0, x: -15 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{
-                        delay: idx * 0.05,
+                        delay: idx * 0.04,
                         duration: 0.35,
                         ease: [0.16, 1, 0.3, 1],
                       }}
@@ -508,7 +503,7 @@ export default function PlasmaDisplayPage() {
                       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                         {isDnf ? (
                           <div className="font-mono font-black text-xs sm:text-sm md:text-base px-3 sm:px-4 py-1 rounded-xl bg-red-600 text-white border border-red-400 shadow-md">
-                            DNF (MOGOK)
+                            DNF
                           </div>
                         ) : (
                           <div
@@ -534,10 +529,10 @@ export default function PlasmaDisplayPage() {
             ===================================================================== */
             <motion.div
               key={`live-dual-${displayedMatchId}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 overflow-hidden"
             >
               {/* ===================================================================
@@ -555,7 +550,7 @@ export default function PlasmaDisplayPage() {
 
                   {isArenaActive && (
                     <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full animate-pulse">
-                      Sedang Dinilai
+                      LIVE
                     </span>
                   )}
                 </div>
@@ -608,7 +603,7 @@ export default function PlasmaDisplayPage() {
                         key={p.bib_number}
                         layout
                         transition={{
-                          layout: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+                          layout: { type: 'spring', stiffness: 450, damping: 34 },
                         }}
                         className={`h-full min-h-0 flex items-center justify-between px-3 sm:px-4 rounded-xl sm:rounded-2xl border transition-colors ${
                           isDnf
@@ -630,23 +625,19 @@ export default function PlasmaDisplayPage() {
                             >
                               {p.bib_number}
                             </span>
-                            <span className="text-xs sm:text-sm font-bold text-slate-200 truncate uppercase tracking-wide">
+                            <span className="text-xs sm:text-sm md:text-base font-bold text-slate-200 truncate uppercase tracking-wide">
                               {p.name}
                             </span>
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0">
-                          {isDnf ? (
-                            <span className="text-[10px] sm:text-xs font-black text-white uppercase bg-red-600 px-2 py-0.5 rounded-lg border border-red-400 shadow-sm">
-                              DNF (MOGOK)
+                        {isDnf && (
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] sm:text-xs font-black text-white uppercase bg-red-600 px-2.5 py-0.5 rounded-lg border border-red-400 shadow-sm">
+                              DNF
                             </span>
-                          ) : (
-                            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase bg-slate-950/60 px-2 py-0.5 rounded-lg border border-slate-800">
-                              Posisi #{position}
-                            </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </motion.div>
                     )
                   })}
@@ -668,12 +659,12 @@ export default function PlasmaDisplayPage() {
 
                   {isRunning && (
                     <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full animate-pulse">
-                      Berjalan
+                      LIVE
                     </span>
                   )}
                   {isPaused && (
                     <span className="text-[11px] font-black uppercase tracking-wider text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 px-2.5 py-0.5 rounded-full">
-                      Dijeda
+                      DIJEDA
                     </span>
                   )}
                 </div>
@@ -696,15 +687,18 @@ export default function PlasmaDisplayPage() {
                 >
                   {Array.from({ length: participantCount }).map((_, idx) => {
                     const position = idx + 1
-                    const splitRecord = splits[idx]
+                    const isSlotDnf = sortedParticipants[idx]?.status === 'dnf'
+                    const splitRecord = isSlotDnf ? undefined : splits[idx]
                     const isFilled = !!splitRecord
-                    const isNextSlot = splits.length === idx && isRunning
+                    const isNextSlot = !isSlotDnf && splits.length === idx && isRunning
 
                     return (
                       <div
                         key={position}
                         className={`h-full min-h-0 flex items-center justify-between px-3 sm:px-4 rounded-xl sm:rounded-2xl border transition-colors ${
-                          isFilled
+                          isSlotDnf
+                            ? 'bg-red-950/50 border-red-500/60 text-red-300'
+                            : isFilled
                             ? 'bg-slate-800/90 border-emerald-500/50 shadow-sm'
                             : isNextSlot
                             ? 'bg-slate-800/50 border-amber-400 ring-2 ring-amber-400/30 animate-pulse'
@@ -714,7 +708,9 @@ export default function PlasmaDisplayPage() {
                         <div className="flex items-center gap-2.5">
                           <span
                             className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
-                              position === 1 && isFilled
+                              isSlotDnf
+                                ? 'bg-red-600 text-white border border-red-400'
+                                : position === 1 && isFilled
                                 ? 'bg-yellow-400 text-slate-950 font-black'
                                 : position === 2 && isFilled
                                 ? 'bg-slate-200 text-slate-950 font-black'
@@ -725,24 +721,26 @@ export default function PlasmaDisplayPage() {
                                 : 'bg-slate-800 text-slate-500 border border-slate-700'
                             }`}
                           >
-                            #{position}
+                            {isSlotDnf ? 'DNF' : `#${position}`}
                           </span>
-                          <div className="text-xs sm:text-sm font-bold text-slate-300">
-                            Posisi {position}
+                          <div className={`text-xs sm:text-sm font-bold ${isSlotDnf ? 'text-red-300' : 'text-slate-300'}`}>
+                            {isSlotDnf ? 'Tidak Finish' : `Posisi ${position}`}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2">
                           <div
                             className={`font-mono font-black text-sm sm:text-base md:text-lg px-2.5 sm:px-3 py-0.5 rounded-lg sm:rounded-xl border tabular-nums ${
-                              isFilled
+                              isSlotDnf
+                                ? 'bg-red-600 text-white border-red-400'
+                                : isFilled
                                 ? 'bg-slate-950 text-emerald-400 border-emerald-500/40 tracking-wider shadow-[0_0_10px_rgba(52,211,153,0.2)]'
                                 : isNextSlot
                                 ? 'bg-slate-950/60 text-amber-300 border-amber-500/40 animate-pulse'
                                 : 'bg-slate-950/40 text-slate-600 border-slate-800'
                             }`}
                           >
-                            {isFilled ? splitRecord.timer : '--.--.--'}
+                            {isSlotDnf ? 'DNF' : isFilled ? splitRecord.timer : '--.--.--'}
                           </div>
                         </div>
                       </div>

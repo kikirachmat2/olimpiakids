@@ -43,9 +43,10 @@ export default function RankRow({
     status === 'dnf' ||
     finish_time === 'DNF' ||
     finish_time === 'dnf'
-  const isFirst = rank === 1 && !isDnf
-  const isSecond = rank === 2 && !isDnf
-  const isThird = rank === 3 && !isDnf
+  const hasTime = duration_ms !== null && duration_ms !== undefined && !isNaN(duration_ms) && !isDnf
+  const isFirst = rank === 1 && hasTime
+  const isSecond = rank === 2 && hasTime
+  const isThird = rank === 3 && hasTime
 
   // Base style & bevel shadow: shadow-[0_3px_0_rgba(...)]
   let rowStyle =
@@ -150,12 +151,14 @@ export default function RankRow({
         gridTemplateColumns: '10% 20% 48% 22%',
       }}
     >
-      {/* Kolom 1 (10%): NO DENGAN MEDALI SPESIAL ATAU BADGE DNF */}
+      {/* Kolom 1 (10%): NO DENGAN MEDALI SPESIAL, STRIP BELUM TANDING (-), ATAU BADGE DNF */}
       <div className="text-center font-display font-black text-sm sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl flex items-center justify-center">
         {isDnf ? (
           <span className="text-[11px] sm:text-xs font-black px-1.5 py-0.5 rounded bg-red-950 text-red-200 border border-red-400/50">
             DNF
           </span>
+        ) : !hasTime ? (
+          <span className="text-slate-400 font-bold select-none">-</span>
         ) : (
           <>
             {badgeIcon}
