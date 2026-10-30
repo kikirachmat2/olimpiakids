@@ -691,6 +691,81 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // =========================================================================
+    // AKSI 4: RESET TOTAL SELURUH DATA SHEET (BERSIHKAN UNTUK TEST MANUAL)
+    // =========================================================================
+    if (payload.action === 'RESET_DATABASE') {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+      // 1. Kosongkan tab TIMER (kembalikan No. 1..N, kosongkan Kolom B)
+      var timerSheet = ss.getSheetByName('TIMER');
+      if (timerSheet) {
+        var tData = timerSheet.getDataRange().getValues();
+        var inMatchData = false;
+        var matchItemIdx = 0;
+        for (var r = 0; r < tData.length; r++) {
+          var valA = String(tData[r][0] || '').trim();
+          var valB = String(tData[r][1] || '').trim();
+
+          if (/MATCH\s*\d+/i.test(valA)) {
+            inMatchData = false;
+            matchItemIdx = 0;
+            continue;
+          }
+          if (valA === 'No.' || valB === 'TIMER') {
+            inMatchData = true;
+            matchItemIdx = 0;
+            continue;
+          }
+          if (inMatchData && (valA || valB)) {
+            matchItemIdx++;
+            timerSheet.getRange(r + 1, 1).setValue(matchItemIdx);
+            timerSheet.getRange(r + 1, 2).setValue('');
+          }
+        }
+      }
+
+      // 2. Kosongkan Kolom TIMER, URUTAN, REMARKS di MASTER DATABASE
+      var masterDbSheet = ss.getSheetByName('MASTER DATABASE');
+      if (masterDbSheet) {
+        var dbData = masterDbSheet.getDataRange().getValues();
+        var colBib = 1;
+        var colTimer = 3;
+        var colUrutan = 4;
+        var colRemarks = 5;
+
+        for (var r = 0; r < Math.min(dbData.length, 4); r++) {
+          for (var c = 0; c < dbData[r].length; c++) {
+            var h = String(dbData[r][c]).trim().toUpperCase();
+            if (h.indexOf('NOMOR') !== -1 || h.indexOf('BIB') !== -1) colBib = c;
+            if (h === 'TIMER' || h === 'WAKTU') colTimer = c;
+            if (h === 'URUTAN') colUrutan = c;
+            if (h === 'REMARKS' || h === 'STATUS') colRemarks = c;
+          }
+        }
+
+        for (var i = 1; i < dbData.length; i++) {
+          var bib = String(dbData[i][colBib] || '').trim();
+          if (bib) {
+            masterDbSheet.getRange(i + 1, colTimer + 1).setValue('');
+            masterDbSheet.getRange(i + 1, colUrutan + 1).setValue('');
+            masterDbSheet.getRange(i + 1, colRemarks + 1).setValue('');
+          }
+        }
+      }
+
+      SpreadsheetApp.flush();
+      try { lock.releaseLock(); } catch(e) {}
+      lock = null;
+
+      var syncResult = runSync_(true, true);
+
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        message: 'Database Sheets berhasil di-reset bersih! Siap untuk tes manual. ' + (syncResult.message || '')
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Aksi tidak dikenal.' }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {

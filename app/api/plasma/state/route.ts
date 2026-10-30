@@ -58,6 +58,30 @@ export async function POST(request: Request) {
     const body = await request.json()
     const nowIso = new Date().toISOString()
 
+    // 0. Reset State Total
+    if (body.action === 'RESET' || body.reset === true) {
+      plasmaState = {
+        currentMatchIdx: 0,
+        currentMatchId: DEFAULT_MATCHES[0]?.id || 1,
+        wasit: {
+          status: 'standby',
+          participants: DEFAULT_MATCHES[0]?.participants || [],
+          updatedAt: nowIso,
+        },
+        timer: {
+          status: 'standby',
+          isRunning: false,
+          isPaused: false,
+          startTime: null,
+          elapsedMs: 0,
+          splits: [],
+          updatedAt: nowIso,
+        },
+        version: plasmaState.version + 1,
+      }
+      return NextResponse.json({ ok: true, version: plasmaState.version, data: plasmaState })
+    }
+
     // 1. Match Switch
     if (typeof body.matchIdx === 'number') {
       plasmaState.currentMatchIdx = body.matchIdx
@@ -100,3 +124,4 @@ export async function POST(request: Request) {
     )
   }
 }
+
