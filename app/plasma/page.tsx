@@ -74,6 +74,13 @@ export default function PlasmaDisplayPage() {
       .then((data) => {
         if (data && data.matches && data.matches.length > 0) {
           setMatches(data.matches)
+          setParticipants((prev) => {
+            if (!prev || prev.length === 0) {
+              const found = data.matches.find((m: WasitMatch) => m.id === displayedMatchId) || data.matches[0]
+              return found?.participants || DEFAULT_MATCHES[0]?.participants || []
+            }
+            return prev
+          })
         }
       })
       .catch(() => {})
@@ -88,7 +95,7 @@ export default function PlasmaDisplayPage() {
         }
       })
       .catch(() => {})
-  }, [])
+  }, [displayedMatchId])
 
   // =========================================================================
   // 2. STOPWATCH RAF LOOP (Smooth 60FPS)
@@ -122,16 +129,24 @@ export default function PlasmaDisplayPage() {
     (s: ActiveMatchSession, isInitial = false) => {
       if (!s) return
 
+      const targetId = s.matchId || 1
+      const fallbackList =
+        DEFAULT_MATCHES.find((m) => m.id === targetId)?.participants ||
+        DEFAULT_MATCHES[0]?.participants ||
+        []
+      const resolvedParticipants =
+        s.participants && s.participants.length > 0 ? s.participants : fallbackList
+
       // ATURAN KRUSIAL:
       // Jika match sebelumnya sudah LOCKED_FINAL, Plasma HARUS TETAP STAY
       // dengan data match tersebut sampai wasit secara eksplisit MEMBUKA GEMBOK
       // match baru (status === 'UNLOCKED').
       setDisplayedMatchId((currentDisplayedId) => {
-        const isMatchSwitch = s.matchId !== currentDisplayedId
+        const isMatchSwitch = targetId !== currentDisplayedId
 
         if (isInitial) {
           // Saat pertama kali buka: tampilkan match 1 (atau match aktif)
-          setParticipants(s.participants || [])
+          setParticipants(resolvedParticipants)
           setSplits(s.splits || [])
           setMatchStatus(s.status)
           if (s.status === 'LOCKED_FINAL') {
@@ -147,7 +162,7 @@ export default function PlasmaDisplayPage() {
             setIsRunning(false)
             setElapsedMs(s.elapsedMs || 0)
           }
-          return s.matchId || 1
+          return targetId
         }
 
         // Jika Wasit sedang memilih match baru di HP tapi statusnya MASIH 'LOCKED':
@@ -159,7 +174,7 @@ export default function PlasmaDisplayPage() {
         // Jika Wasit MEMBUKA GEMBOK match baru (status === 'UNLOCKED'):
         // Plasma BERUBAH dengan animasi pindah ke data match baru & timer 00:00.00!
         if (isMatchSwitch && s.status === 'UNLOCKED') {
-          setParticipants(s.participants || [])
+          setParticipants(resolvedParticipants)
           setSplits([])
           setFinalResults([])
           setIsLockedFinal(false)
@@ -168,16 +183,13 @@ export default function PlasmaDisplayPage() {
           setIsPaused(false)
           setElapsedMs(0)
           startTimeRef.current = null
-          return s.matchId
+          return targetId
         }
 
         // Jika masih di match yang sama (atau switch yang valid):
         if (!isMatchSwitch || s.status !== 'LOCKED') {
           setMatchStatus(s.status)
-
-          if (s.participants && s.participants.length > 0) {
-            setParticipants(s.participants)
-          }
+          setParticipants(resolvedParticipants)
 
           if (s.splits) {
             setSplits(s.splits)
@@ -191,7 +203,7 @@ export default function PlasmaDisplayPage() {
               setFinalResults(s.results)
             } else {
               // Rekonstruksi jika results belum terformat
-              const merged = (s.participants || []).map((p, idx) => {
+              const merged = resolvedParticipants.map((p, idx) => {
                 const isDnf = p.status === 'dnf'
                 const sp = s.splits?.[idx]
                 return {
@@ -223,7 +235,7 @@ export default function PlasmaDisplayPage() {
             startTimeRef.current = null
           }
 
-          return s.matchId
+          return targetId
         }
 
         return currentDisplayedId
@@ -282,8 +294,15 @@ export default function PlasmaDisplayPage() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
+  const effectiveList =
+    participants.length > 0
+      ? participants
+      : DEFAULT_MATCHES.find((m) => m.id === displayedMatchId)?.participants ||
+        DEFAULT_MATCHES[0]?.participants ||
+        []
+
   // Urutkan peserta: Yang DNF selalu ditaruh paling bawah di layar Plasma!
-  const sortedParticipants = [...participants].sort((a, b) => {
+  const sortedParticipants = [...effectiveList].sort((a, b) => {
     const aDnf = a.status === 'dnf'
     const bDnf = b.status === 'dnf'
     if (aDnf && !bDnf) return 1
