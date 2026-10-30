@@ -1064,8 +1064,9 @@ export default function WasitPage() {
             <span className="text-xs font-black uppercase tracking-wider text-slate-400">
               URUTAN POSISI ARENA:
             </span>
-            <span className="text-[11px] font-bold text-slate-500">
-              Tahan & Geser atau gunakan Panah
+            <span className="text-[11px] font-bold text-amber-400/90 flex items-center gap-1">
+              <GripVertical className="w-3.5 h-3.5" />
+              <span>Tahan & Geser (Drag & Drop)</span>
             </span>
           </div>
 
@@ -1084,7 +1085,15 @@ export default function WasitPage() {
                 <Reorder.Item
                   key={p.bib_number}
                   value={p}
-                  className={`p-3 rounded-2xl border transition-all flex flex-col gap-2 ${
+                  dragListener={!isFinal}
+                  whileDrag={{
+                    scale: 1.03,
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(251 191 36 / 0.35)',
+                    zIndex: 50,
+                  }}
+                  className={`p-3 rounded-2xl border transition-colors flex flex-col gap-2 select-none ${
+                    !isFinal ? 'cursor-grab active:cursor-grabbing' : ''
+                  } ${
                     isDnf
                       ? 'bg-red-950/30 border-red-500/50'
                       : position === 1
@@ -1093,8 +1102,17 @@ export default function WasitPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2.5">
-                    {/* Rank Badge + Drag */}
+                    {/* Grip Handle + Rank Badge + Info */}
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div
+                        className={`p-1 -ml-1 rounded-lg transition-colors shrink-0 ${
+                          isFinal ? 'text-slate-700' : 'text-slate-400 hover:text-amber-400 active:text-amber-300'
+                        }`}
+                        title="Tahan dan geser untuk mengubah urutan"
+                      >
+                        <GripVertical className="w-5 h-5" />
+                      </div>
+
                       <div
                         className={`w-8 h-8 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 ${
                           isDnf
@@ -1128,29 +1146,15 @@ export default function WasitPage() {
                       </div>
                     </div>
 
-                    {/* Up / Down buttons + DNF button */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => moveItem(idx, 'UP')}
-                        disabled={idx === 0 || isFinal}
-                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg border border-slate-700"
-                        title="Naikkan Posisi"
-                      >
-                        <ChevronUp className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => moveItem(idx, 'DOWN')}
-                        disabled={idx === participants.length - 1 || isFinal}
-                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg border border-slate-700"
-                        title="Turunkan Posisi"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-
+                    {/* Hanya tombol DNF (Tanpa tombol panah atas/bawah) */}
+                    <div
+                      className="flex items-center gap-1.5 shrink-0"
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => handleToggleDnf(p.bib_number)}
                         disabled={isFinal}
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
                           isDnf
                             ? 'bg-red-600 text-white border-red-400'
                             : 'bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border-slate-700'
@@ -1163,7 +1167,10 @@ export default function WasitPage() {
                   </div>
 
                   {/* Manual Time Input Row (WASIT BISA EDIT & ISI WAKTU MANUAL) */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                  <div
+                    className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
                     <span className="text-slate-400 font-bold flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-amber-400" />
                       <span>Catatan Waktu:</span>
