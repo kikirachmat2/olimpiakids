@@ -346,20 +346,35 @@ export async function POST(request: Request) {
     const prevSession = await getActiveSession().catch(() => null)
     const nextMatchStatuses = { ...(prevSession?.matchStatuses || {}), [matchId]: 'FINAL' as const }
 
-    const finalSession: ActiveMatchSession = {
-      matchId,
-      matchTitle: matchTitle || `MATCH ${matchId}`,
-      status: 'LOCKED_FINAL',
-      participants: results,
-      results,
-      splits: effectiveSplits,
-      elapsedMs: effectiveSplits.length > 0 ? effectiveSplits[effectiveSplits.length - 1].elapsedMs : 0,
-      startTime: null,
-      dnfList: matchDnfBibs,
-      matchStatuses: nextMatchStatuses,
-      updatedAt: nowIso,
-      lockedAt: nowIso,
-    }
+    // Jika Wasit sudah terlanjur pindah & membuka gembok match berikutnya, jangan timpa match aktif tersebut
+    const isAnotherMatchAlreadyUnlocked =
+      prevSession &&
+      prevSession.matchId !== matchId &&
+      (prevSession.status === 'UNLOCKED' ||
+        prevSession.status === 'RUNNING' ||
+        prevSession.status === 'TIMER_COMPLETED')
+
+    const finalSession: ActiveMatchSession = isAnotherMatchAlreadyUnlocked
+      ? {
+          ...prevSession,
+          matchStatuses: nextMatchStatuses,
+          updatedAt: nowIso,
+        }
+      : {
+          matchId,
+          matchTitle: matchTitle || `MATCH ${matchId}`,
+          status: 'LOCKED_FINAL',
+          participants: results,
+          results,
+          splits: effectiveSplits,
+          elapsedMs:
+            effectiveSplits.length > 0 ? effectiveSplits[effectiveSplits.length - 1].elapsedMs : 0,
+          startTime: null,
+          dnfList: matchDnfBibs,
+          matchStatuses: nextMatchStatuses,
+          updatedAt: nowIso,
+          lockedAt: nowIso,
+        }
     await saveActiveSession(finalSession)
 
     // 4. UPDATE LANGSUNG KE SUPABASE `race_results` (SEBELUM WEBHOOK)

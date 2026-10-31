@@ -6,6 +6,7 @@ import {
   Lock,
   Unlock,
   ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronDown,
   AlertTriangle,
@@ -223,6 +224,8 @@ export default function WasitPage() {
   }, [])
 
   const reorderDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const hasInitializedSessionRef = useRef(false)
+  const lastLocalActionAtRef = useRef<number>(0)
 
   const loadSessionFromDb = useCallback(async () => {
     try {
@@ -238,16 +241,19 @@ export default function WasitPage() {
         if (s.matchStatuses) {
           setMatchStatuses((prev) => ({ ...prev, ...s.matchStatuses }))
         }
-        if (s.matchId) {
-          const idx = matches.findIndex((m) => m.id === s.matchId)
-          if (idx !== -1) setCurrentMatchIdx(idx)
-        }
-        if (s.participants && s.participants.length > 0) {
-          setParticipants(s.participants)
+        if (!hasInitializedSessionRef.current) {
+          hasInitializedSessionRef.current = true
+          if (s.matchId) {
+            const idx = DEFAULT_MATCHES.findIndex((m) => m.id === s.matchId)
+            if (idx !== -1) setCurrentMatchIdx(idx)
+          }
+          if (s.participants && s.participants.length > 0) {
+            setParticipants(s.participants)
+          }
         }
       }
     } catch {}
-  }, [matches])
+  }, [])
 
   useEffect(() => {
     loadMatchesFromApi()
@@ -281,6 +287,9 @@ export default function WasitPage() {
               ? prev.participants
               : payload.session.participants || prev.participants,
         }))
+        if (payload.session.matchStatuses) {
+          setMatchStatuses((prev) => ({ ...prev, ...payload.session.matchStatuses }))
+        }
       }
     }
 
@@ -288,17 +297,24 @@ export default function WasitPage() {
 
     // Backup polling tiap 1.5 detik saat match sedang UNLOCKED / RUNNING agar split dari Timer anti-lewat
     const interval = setInterval(async () => {
+      if (Date.now() - lastLocalActionAtRef.current < 2500) return
       try {
         const s = await getActiveSession()
-        if (s && s.matchId === currentMatch?.id) {
-          setSession((prev) => ({
-            ...prev,
-            status: s.status,
-            splits: s.splits || [],
-            elapsedMs: s.elapsedMs || 0,
-            startTime: s.startTime,
-            matchStatuses: s.matchStatuses || prev.matchStatuses,
-          }))
+        if (Date.now() - lastLocalActionAtRef.current < 2500) return
+        if (s) {
+          if (s.matchStatuses) {
+            setMatchStatuses((prev) => ({ ...prev, ...s.matchStatuses }))
+          }
+          if (s.matchId === currentMatch?.id) {
+            setSession((prev) => ({
+              ...prev,
+              status: s.status,
+              splits: s.splits || [],
+              elapsedMs: s.elapsedMs || 0,
+              startTime: s.startTime,
+              matchStatuses: s.matchStatuses || prev.matchStatuses,
+            }))
+          }
         }
       } catch {}
     }, 1500)
@@ -327,13 +343,13 @@ export default function WasitPage() {
   }
 
   // =========================================================================
-  // PILIH MATCH DARI LIST
+  // PILIH MATCH DARI LIST / TOMBOL NEXT MATCH
   // =========================================================================
   const selectMatch = (idx: number) => {
     const target = matches[idx]
     if (!target) return
 
-    // Cegah pindah match jika ada match lain yang sedang RUNNING
+    // Cegah pindah match jika ada match lain yang sedang RUNNING / UNLOCKED
     if (
       session.matchId !== target.id &&
       (session.status === 'RUNNING' || session.status === 'UNLOCKED')
@@ -345,6 +361,7 @@ export default function WasitPage() {
       return
     }
 
+    lastLocalActionAtRef.current = Date.now()
     setCurrentMatchIdx(idx)
     setManualTimes({})
 
@@ -363,6 +380,7 @@ export default function WasitPage() {
   // BUKA GEMBOK MATCH (WASIT ADALAH MASTER)
   // =========================================================================
   const handleUnlockMatch = async () => {
+    lastLocalActionAtRef.current = Date.now()
     const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'UNLOCKED' as const }
     const resetParticipants: WasitParticipant[] = (
       participants.length > 0 ? participants : currentMatch.participants || []
@@ -389,12 +407,13 @@ export default function WasitPage() {
     setManualTimes({})
     setSession(updated)
     setMatchStatuses(nextStatuses)
-    await saveActiveSession(updated)
     broadcastSessionEvent({ action: 'UNLOCK_MATCH', session: updated })
+    await saveActiveSession(updated)
     showToast('success', `🔓 Gembok ${currentMatch.title} dibuka! Timer & Plasma aktif.`)
   }
 
   const handleLockMatchBack = async () => {
+    lastLocalActionAtRef.current = Date.now()
     const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'LOCKED' as const }
     const updated: ActiveMatchSession = {
       ...session,
@@ -406,8 +425,8 @@ export default function WasitPage() {
     }
     setSession(updated)
     setMatchStatuses(nextStatuses)
-    await saveActiveSession(updated)
     broadcastSessionEvent({ action: 'LOCK_MATCH', session: updated })
+    await saveActiveSession(updated)
     showToast('success', `🔒 ${currentMatch.title} dikembalikan ke status TERGEMBOK.`)
   }
 
@@ -415,6 +434,7 @@ export default function WasitPage() {
   // REORDER PARTICIPANTS (URUTAN WASIT - DEBOUNCED SYNC)
   // =========================================================================
   const handleReorder = (newOrder: WasitParticipant[]) => {
+    lastLocalActionAtRef.current = Date.now()
     // Pastikan yang DNF tetap berada di urutan paling bawah
     const nonDnf = newOrder.filter((p) => p.status !== 'dnf')
     const dnfOnly = newOrder.filter((p) => p.status === 'dnf')
@@ -442,6 +462,7 @@ export default function WasitPage() {
   // TOGGLE DNF (MOGOK) - OTOMATIS HENTIKAN STOPWATCH JIKA SISA ANAK HABIS
   // =========================================================================
   const handleToggleDnf = (bib: string) => {
+    lastLocalActionAtRef.current = Date.now()
     const cloned = [...participants]
     const idx = cloned.findIndex((p) => p.bib_number === bib)
     if (idx === -1) return
@@ -509,18 +530,23 @@ export default function WasitPage() {
   }
 
   // =========================================================================
-  // KUNCI & KIRIM HASIL KE LEADERBOARD (ATOMIC LOCK)
+  // KUNCI & KIRIM HASIL KE LEADERBOARD (INSTANT ATOMIC LOCK)
   // =========================================================================
   const handleFinalLock = async () => {
     if (participants.length === 0) return
     setIsSubmitting(true)
+    lastLocalActionAtRef.current = Date.now()
+
+    const lockedMatchId = currentMatch.id
+    const lockedMatchTitle = currentMatch.title
+    const lockedParticipants = [...participants]
 
     try {
-      const activeSplits = session.matchId === currentMatch.id ? session.splits || [] : []
+      const activeSplits = session.matchId === lockedMatchId ? session.splits || [] : []
       let finisherIdx = 0
 
       // Gabungkan urutan wasit + catatan waktu (dari split urutan posisi atau edit manual wasit)
-      const mergedResults = participants.map((p) => {
+      const mergedResults = lockedParticipants.map((p) => {
         const isDnf = p.status === 'dnf'
         if (isDnf) {
           return {
@@ -547,30 +573,14 @@ export default function WasitPage() {
         }
       })
 
-      const res = await fetch('/api/wasit/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchId: currentMatch.id,
-          matchTitle: currentMatch.title,
-          results: mergedResults,
-          splits: activeSplits,
-          refereePin: isSupervisor ? '9999' : '1234',
-        }),
-      })
-
-      if (!res.ok) {
-        const json = await res.json()
-        throw new Error(json.error || 'Gagal mengunci hasil match')
-      }
-
-      const nextStatuses = { ...matchStatuses, [currentMatch.id]: 'FINAL' as const }
+      const nowIso = new Date().toISOString()
+      const nextStatuses = { ...matchStatuses, [lockedMatchId]: 'FINAL' as const }
       const lockedSession: ActiveMatchSession = {
         ...session,
-        matchId: currentMatch.id,
-        matchTitle: currentMatch.title,
+        matchId: lockedMatchId,
+        matchTitle: lockedMatchTitle,
         status: 'LOCKED_FINAL',
-        participants: participants,
+        participants: lockedParticipants,
         results: mergedResults,
         splits: mergedResults
           .filter((r) => r.status !== 'dnf')
@@ -581,14 +591,49 @@ export default function WasitPage() {
             manualEdited: manualTimes[r.bib_number] !== undefined,
           })),
         matchStatuses: nextStatuses,
-        updatedAt: new Date().toISOString(),
-        lockedAt: new Date().toISOString(),
+        updatedAt: nowIso,
+        lockedAt: nowIso,
       }
+
+      // 1. INSTANT LOCK: Kunci di UI Wasit, Timer, Plasma & Supabase seketika (< 100ms)
+      // supaya Wasit bisa langsung klik "LANJUT KE MATCH BERIKUTNYA" tanpa tertahan webhook Sheets!
       setSession(lockedSession)
       setMatchStatuses(nextStatuses)
+      setMatches((prev) =>
+        prev.map((m) =>
+          m.id === lockedMatchId
+            ? {
+                ...m,
+                participants: lockedParticipants.map((p, idx) => ({
+                  ...p,
+                  urutan: p.status === 'dnf' ? 'DNF' : idx + 1,
+                })),
+              }
+            : m
+        )
+      )
       broadcastSessionEvent({ action: 'LOCK_FINAL', session: lockedSession })
+      await saveActiveSession(lockedSession)
 
-      showToast('success', `${currentMatch.title} berhasil dikunci & dikirim!`)
+      showToast('success', `${lockedMatchTitle} terkunci! Silakan lanjut ke Match berikutnya.`)
+
+      // 2. Sinkronkan ke Supabase race_results & Google Sheets di background
+      const res = await fetch('/api/wasit/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchId: lockedMatchId,
+          matchTitle: lockedMatchTitle,
+          results: mergedResults,
+          splits: activeSplits,
+          refereePin: isSupervisor ? '9999' : '1234',
+        }),
+      })
+
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || 'Gagal menyinkronkan ke Google Sheets')
+      }
     } catch (err: unknown) {
       showToast('error', err instanceof Error ? err.message : 'Terjadi kegagalan saat mengunci hasil.')
     } finally {
@@ -1169,28 +1214,50 @@ export default function WasitPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950 font-sans pb-16">
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 py-2.5">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
+        <div className="max-w-xl mx-auto flex items-center justify-between gap-2">
           <button
             onClick={() => setViewMode('MATCH_LIST')}
-            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 shadow-sm"
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1 shadow-sm shrink-0"
           >
             <ChevronLeft className="w-4 h-4 text-amber-400" />
-            <span>Daftar Match</span>
+            <span>Daftar</span>
           </button>
 
-          <div className="text-center">
-            <h1 className="font-display font-black text-sm sm:text-base text-white tracking-wide uppercase">
-              {currentMatch.title}
-            </h1>
-            <span className="text-[10px] text-amber-400 font-bold">
-              {participants.length} / 10 Peserta
-            </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button
+              onClick={() => currentMatchIdx > 0 && selectMatch(currentMatchIdx - 1)}
+              disabled={currentMatchIdx <= 0}
+              className="p-1.5 bg-slate-800/80 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg border border-slate-700 shrink-0"
+              title="Match Sebelumnya"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="text-center min-w-0 px-1">
+              <h1 className="font-display font-black text-xs sm:text-sm text-white tracking-wide uppercase truncate">
+                {currentMatch.title}
+              </h1>
+              <span className="text-[10px] text-amber-400 font-bold block leading-tight">
+                {participants.length} / 10 Peserta
+              </span>
+            </div>
+
+            <button
+              onClick={() =>
+                currentMatchIdx < matches.length - 1 && selectMatch(currentMatchIdx + 1)
+              }
+              disabled={currentMatchIdx >= matches.length - 1}
+              className="p-1.5 bg-slate-800/80 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg border border-slate-700 shrink-0"
+              title="Match Berikutnya"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <button
             onClick={() => openMoveModal(participants[0])}
             disabled={participants.length === 0}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl border border-slate-700"
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl border border-slate-700 shrink-0"
             title="Pindah Peserta"
           >
             <Users className="w-4 h-4" />
@@ -1320,21 +1387,39 @@ export default function WasitPage() {
       {/* STICKY BOTTOM ACTION BAR */}
       <footer className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 shadow-2xl">
         <div className="max-w-xl mx-auto flex items-center gap-2.5">
-          {/* Tombol Kunci Hasil Utama */}
-          <button
-            onClick={handleFinalLock}
-            disabled={isSubmitting || isLocked || isFinal}
-            className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 disabled:opacity-40 text-slate-950 font-display font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
-          >
-            {isSubmitting ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
+          {isFinal ? (
+            currentMatchIdx < matches.length - 1 ? (
+              <button
+                onClick={() => selectMatch(currentMatchIdx + 1)}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-400 to-green-400 hover:from-emerald-300 hover:to-green-300 text-slate-950 font-display font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <span>
+                  LANJUT KE MATCH {matches[currentMatchIdx + 1]?.id || currentMatch.id + 1}
+                </span>
+                <MoveRight className="w-4 h-4 text-slate-950" />
+              </button>
             ) : (
-              <Lock className="w-4 h-4 text-slate-950" />
-            )}
-            <span>
-              {isFinal ? 'HASIL TELAH DIKUNCI' : 'KUNCI & KIRIM HASIL KE LEADERBOARD'}
-            </span>
-          </button>
+              <button
+                onClick={() => setViewMode('MATCH_LIST')}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 text-slate-950 font-display font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <span>SEMUA MATCH SELESAI • DAFTAR MATCH</span>
+              </button>
+            )
+          ) : (
+            <button
+              onClick={handleFinalLock}
+              disabled={isSubmitting || isLocked}
+              className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 disabled:opacity-40 text-slate-950 font-display font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+            >
+              {isSubmitting ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Lock className="w-4 h-4 text-slate-950" />
+              )}
+              <span>KUNCI & KIRIM HASIL KE LEADERBOARD</span>
+            </button>
+          )}
 
           {/* Reset Match Button */}
           <button
